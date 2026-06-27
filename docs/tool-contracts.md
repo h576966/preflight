@@ -34,7 +34,47 @@ Untracked file contents are out of scope for this tool. `local_diff` should list
 
 Read selected local file ranges only.
 
-Use this for local-only files, locally changed files, local instruction files, exact local paths, or allowlisted high-value TS/JS/Python project files. Prefer ChatGPT's GitHub tool for normal committed file content when exact local path lookup is not required.
+Use this for exact paths when they are local-only files, locally changed files, local instruction files, or allowlisted high-value TS/JS/Python project files. Prefer ChatGPT's GitHub tool for normal committed file content when exact local path lookup is not required.
+
+Input:
+
+```json
+{
+  "files": [
+    {
+      "path": "string",
+      "startLine": 1,
+      "endLine": 120
+    }
+  ],
+  "maxBytes": 60000
+}
+```
+
+Output:
+
+```json
+{
+  "files": [
+    {
+      "path": "string",
+      "startLine": 1,
+      "endLine": 120,
+      "content": "string",
+      "truncated": false
+    }
+  ],
+  "omittedFiles": [
+    {
+      "path": "string",
+      "reason": "ignored|not-allowed|not-found|binary-or-unreadable|byte-budget"
+    }
+  ],
+  "truncated": false
+}
+```
+
+Hard-blocked secret-like paths and paths outside the repository are rejected. Other unreadable or disallowed files are reported in `omittedFiles`.
 
 ## show_questions
 

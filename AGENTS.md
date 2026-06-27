@@ -8,7 +8,7 @@ Build a strictly read-only local preflight MCP/App that makes ChatGPT a more tru
 
 The project should complement ChatGPT's GitHub tool:
 
-- GitHub handles remote repository context and committed code/docs. PR, issue, review, and CI context can be used when available, but are not part of this version's assumptions.
+- GitHub handles remote repository context and committed code/docs. PR, issue, review, and CI workflows are not part of this personal MVP unless the user explicitly asks for them.
 - Preflight handles local worktree facts, staged/unstaged diffs, selected local file reads, local instructions, and multiple-choice alignment UI.
 
 ChatGPT is the reasoning layer. The MCP server should provide local facts and UI plumbing, not its own analysis engine.
@@ -20,6 +20,11 @@ ChatGPT is the reasoning layer. The MCP server should provide local facts and UI
 - Prefer small, reversible changes.
 - Keep planning documents current when product or architecture decisions change.
 - Do not add infrastructure before the implementation needs it.
+- Treat review requests as local/manual code review unless the user explicitly asks for a specific external tool.
+- Never use CodeRabbit for this repository.
+- Do not create PRs, issues, or GitHub workflow artifacts unless the user explicitly asks.
+- Prefer working on the current branch for normal small changes.
+- Create a short-lived branch only for risky, experimental, or parallel work, or when the user asks. Do not accumulate branches.
 
 ## Hard Constraints
 

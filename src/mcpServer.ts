@@ -4,6 +4,7 @@ import { z } from "zod";
 import { DEFAULT_LIMITS } from "./constants.js";
 import { createLocalDiff } from "./localDiff.js";
 import { createProjectSnapshot } from "./projectSnapshot.js";
+import { createReadLocal } from "./readLocal.js";
 
 export type PreflightServerOptions = {
   repoPath: string;
@@ -20,6 +21,7 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
         "Preflight is a read-only local repository companion.",
         "Use project_snapshot for local worktree facts that ChatGPT's GitHub tool cannot see.",
         "Use local_diff for bounded tracked-file patches when local changes matter.",
+        "Use read_local for bounded local-only or exact-path file reads.",
         "Prefer GitHub for committed remote code/docs; use Preflight for local state, diffs, and exact local paths."
       ].join(" ")
     }
@@ -90,6 +92,49 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
           {
             type: "text",
             text: `Local ${args.scope} diff: ${diff.files.length} file patch(es), ${diff.omittedFiles.length} omitted.`
+          }
+        ]
+      };
+    }
+  );
+
+  server.registerTool(
+    "read_local",
+    {
+      title: "Read Local",
+      description: [
+        "Use this for bounded local file-range reads in the active repository.",
+        "Prefer GitHub for normal committed content.",
+        "Use read_local for exact paths when they are local-only, changed, instruction files, or allowlisted TS/JS/Python project files.",
+        "This tool is read-only and hard-blocks secret-like paths."
+      ].join(" "),
+      inputSchema: {
+        files: z.array(z.object({
+          path: z.string(),
+          startLine: z.number().int().min(1).optional(),
+          endLine: z.number().int().min(1).optional()
+        })).min(1).max(20),
+        maxBytes: z.number().int().min(1).max(DEFAULT_LIMITS.maxReadBytes).optional()
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: false
+      }
+    },
+    async (args): Promise<CallToolResult> => {
+      const result = createReadLocal({
+        repoPath: options.repoPath,
+        files: args.files,
+        maxBytes: args.maxBytes
+      });
+
+      return {
+        structuredContent: result,
+        content: [
+          {
+            type: "text",
+            text: `Local read: ${result.files.length} file(s), ${result.omittedFiles.length} omitted.`
           }
         ]
       };

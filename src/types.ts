@@ -55,3 +55,28 @@ export type LocalDiff = {
   files: LocalDiffFile[];
   omittedFiles: OmittedDiffFile[];
 };
+
+export type ReadLocalRequestFile = {
+  path: string;
+  startLine?: number;
+  endLine?: number;
+};
+
+export type ReadLocalFile = {
+  path: string;
+  startLine: number;
+  endLine: number;
+  content: string;
+  truncated: boolean;
+};
+
+export type OmittedReadLocalFile = {
+  path: string;
+  reason: "ignored" | "not-allowed" | "not-found" | "binary-or-unreadable" | "byte-budget";
+};
+
+export type ReadLocal = {
+  files: ReadLocalFile[];
+  omittedFiles: OmittedReadLocalFile[];
+  truncated: boolean;
+};

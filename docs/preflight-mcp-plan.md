@@ -47,7 +47,8 @@ Use the ChatGPT GitHub tool for:
 - README and docs from the remote repository
 - broad code search
 - citations to committed code
-- PRs, issues, review comments, branches, and CI/check context when available
+
+Do not assume PR, issue, review-comment, branch-management, or CI/check workflows for this personal MVP.
 
 Known GitHub tool limitations for this design:
 
@@ -86,6 +87,9 @@ Preflight should expose GitHub identity hints, but it should not call the GitHub
 - Treat `AGENTS.md` and README guidance as strong recommendations, not hidden hard policy.
 - Assume the ChatGPT GitHub tool can provide committed repository code, README/docs, search, analysis, and citations.
 - Do not assume PR, issue, review, or CI context in this version.
+- Review requests mean local/manual review by default.
+- Do not use CodeRabbit for this repository.
+- Use the current branch for ordinary small changes. Create short-lived branches only for risky, experimental, or parallel work, and do not accumulate branches.
 
 ## MVP Tool Surface
 
@@ -214,6 +218,7 @@ Returns:
 
 ```json
 {
+  "truncated": false,
   "files": [
     {
       "path": "string",
@@ -221,6 +226,12 @@ Returns:
       "endLine": 120,
       "content": "string",
       "truncated": false
+    }
+  ],
+  "omittedFiles": [
+    {
+      "path": "string",
+      "reason": "ignored|not-allowed|not-found|binary-or-unreadable|byte-budget"
     }
   ]
 }
@@ -230,7 +241,8 @@ Usage guidance:
 
 - Prefer GitHub for normal committed file content.
 - Use this for local-only files, locally changed files, instruction files, or allowlisted high-value TS/JS/Python project files.
-- Deny secret-like paths.
+- Reject path escapes and secret-like paths.
+- Omit ignored, disallowed, unreadable, or byte-budget-skipped files.
 
 Default allowlist beyond changed/untracked/instruction files:
 
@@ -249,7 +261,7 @@ setup.cfg
 pytest.ini
 ```
 
-Lockfiles can be read explicitly when needed, but should not be auto-included in `project_snapshot`.
+Lockfiles are not in the default allowlist. They can be read only when locally changed or untracked.
 
 ### show_questions
 

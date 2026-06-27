@@ -19,6 +19,7 @@
 - Arbitrary shell commands.
 - GitHub API client.
 - PR, issue, review, or CI integrations.
+- External review automation such as CodeRabbit.
 - Remote repository indexing.
 - Local code search in MVP.
 - Server-side Codex prompt generation.
@@ -29,6 +30,7 @@
 - Persistent session storage.
 - Full multi-project configuration.
 - App OAuth/authentication.
+- Long-lived or accumulated task branches.
 
 ## Phase Order
 

@@ -9,6 +9,10 @@ Date: 2026-06-27
 - Build primarily for personal use by the repository owner.
 - Design preflight as a local companion to ChatGPT's GitHub tool.
 - Keep ChatGPT as the reasoning and prompt-writing layer.
+- Treat code review as local/manual review by default.
+- Never use CodeRabbit for this repository.
+- Avoid PR, issue, and GitHub workflow management unless explicitly requested.
+- Use the current branch for normal small changes; create short-lived branches only for risky, experimental, or parallel work.
 - Keep the server strictly read-only.
 - Hard-block `.env`, `.env.*`, private keys, certificates, and similar secret material.
 - Use an 80/20 local-read model: changed files, untracked files, instruction files, and a small allowlist of high-value non-secret project files.
@@ -35,6 +39,8 @@ Date: 2026-06-27
 - GitHub tool first for committed repo context, docs, search, and citations.
 - Preflight first for local worktree status, staged/unstaged diffs, and untracked files.
 - Preflight `read_local` first when the exact local path matters.
+- Local commits are enough for normal personal-project checkpoints.
+- Keep branch count low: one active task branch only when it materially reduces risk or confusion.
 - Default `read_local` allowlist: `AGENTS.md`, `README*`, `package.json`, `tsconfig*.json`, `vite.config.*`, `next.config.*`, `eslint.config.*`, `pyproject.toml`, `requirements*.txt`, `setup.py`, `setup.cfg`, `pytest.ini`.
 - Lockfiles may be read explicitly when needed, but should not be included automatically in `project_snapshot`.
 - Auto-included file contents are capped at 8 KB per file and 24 KB total.
@@ -46,6 +52,7 @@ Date: 2026-06-27
 - Server-side recommendation logic.
 - Prompt preview and diff summary UI.
 - PR, issue, review, and CI context for this version.
+- External review automation.
 
 ## Still Open
 
