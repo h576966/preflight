@@ -267,7 +267,7 @@ Lockfiles are not in the default allowlist. They can be read only when locally c
 
 Purpose: render multiple-choice questions created by ChatGPT.
 
-Phase 2A behavior: validate and store the question set, then return a normal-chat text fallback with `rendered: true`. The ChatGPT App widget renderer is deferred to Phase 2B.
+Phase 2B behavior: validate and store the question set, return structured question data with `rendered: true`, and render the minimal ChatGPT App question widget. Normal chat text remains a fallback when the widget is unavailable.
 
 Inputs:
 
@@ -324,6 +324,10 @@ Implementation notes:
 - Keep 1-10 questions per set.
 - Reusing `questionSetId` is allowed only for the same normalized question payload.
 - Recommended options must match an option in the same question.
+- Render widget resource `ui://widget/questions-v1.html`.
+- Keep widget self-contained with no remote assets and empty CSP domain lists.
+- Let the widget call `submit_answers` after the user selects options.
+- Use the MCP Apps bridge for tool results and widget-initiated tool calls, with `window.openai` as a ChatGPT compatibility fallback.
 
 ### submit_answers
 
@@ -460,7 +464,7 @@ ChatGPT writes the final Codex-ready prompt
 
 - `show_questions`
 - `submit_answers`
-- minimal ChatGPT App component
+- minimal ChatGPT App question component
 - in-memory question sets
 
 ### Phase 3: Setup And Hardening

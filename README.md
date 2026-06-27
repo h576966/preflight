@@ -22,7 +22,7 @@ npm test
 npm start -- --repo C:\path\to\repo
 ```
 
-The initial server exposes a local MCP endpoint at `http://localhost:3327/mcp` with these tools:
+The initial server exposes a local MCP endpoint at `http://localhost:3327/mcp`, plus a small ChatGPT App question widget, with these tools:
 
 - `project_snapshot`
 - `local_diff`

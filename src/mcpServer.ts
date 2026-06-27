@@ -4,6 +4,7 @@ import { z } from "zod";
 import { DEFAULT_LIMITS } from "./constants.js";
 import { createLocalDiff } from "./localDiff.js";
 import { createProjectSnapshot } from "./projectSnapshot.js";
+import { QUESTION_WIDGET_URI, registerQuestionWidget } from "./questionWidget.js";
 import { formatQuestionSetForText, QuestionStore } from "./questions.js";
 import { createReadLocal } from "./readLocal.js";
 
@@ -56,6 +57,8 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
       ].join(" ")
     }
   );
+
+  registerQuestionWidget(server);
 
   server.registerTool(
     "project_snapshot",
@@ -177,7 +180,7 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
       title: "Show Questions",
       description: [
         "Use this when you need to ask the user concise single-choice or multi-choice alignment questions.",
-        "This Phase 2A tool stores the question set and returns a normal-chat text fallback; widget rendering is deferred."
+        "Stores the question set, renders the question widget when available, and returns a normal-chat text fallback."
       ].join(" "),
       inputSchema: {
         questionSetId: z.string(),
@@ -190,7 +193,16 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
       },
       annotations: {
         destructiveHint: false,
+        idempotentHint: true,
         openWorldHint: false
+      },
+      _meta: {
+        ui: {
+          resourceUri: QUESTION_WIDGET_URI
+        },
+        "openai/outputTemplate": QUESTION_WIDGET_URI,
+        "openai/toolInvocation/invoking": "Rendering questions...",
+        "openai/toolInvocation/invoked": "Questions ready."
       }
     },
     async (args): Promise<CallToolResult> => {
@@ -226,7 +238,14 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
       },
       annotations: {
         destructiveHint: false,
+        idempotentHint: true,
         openWorldHint: false
+      },
+      _meta: {
+        "openai/widgetAccessible": true,
+        ui: {
+          visibility: ["model", "app"]
+        }
       }
     },
     async (args): Promise<CallToolResult> => {

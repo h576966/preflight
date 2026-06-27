@@ -80,7 +80,7 @@ Hard-blocked secret-like paths and paths outside the repository are rejected. Ot
 
 Render multiple-choice questions created by ChatGPT.
 
-The server should not decide which questions to ask. In Phase 2A it validates and stores the question set, then returns a normal-chat text fallback. The ChatGPT App widget renderer is deferred.
+The server should not decide which questions to ask. It validates and stores the question set, returns structured question data, and renders the minimal ChatGPT App question widget. Normal chat text remains a fallback when the widget is unavailable.
 
 Input:
 
@@ -137,6 +137,15 @@ Validation:
 - option IDs are unique within each question.
 - reused `questionSetId` is allowed only for the same normalized question payload.
 - `recommendedOptionId`, when present, must match an option.
+
+UI:
+
+- widget resource: `ui://widget/questions-v1.html`
+- widget MIME type: `text/html;profile=mcp-app`
+- no remote assets or external CSP domains
+- widget uses the MCP Apps bridge for tool results and widget-initiated tool calls
+- widget falls back to ChatGPT `window.openai` helpers when the bridge path is unavailable
+- widget calls `submit_answers` after the user selects options
 
 ## submit_answers
 

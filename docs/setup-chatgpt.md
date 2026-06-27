@@ -27,6 +27,26 @@ Alternatives:
 5. Prefer GitHub for committed remote context and preflight for local worktree deltas.
 6. Use preflight `read_local` when exact local file paths matter, because the GitHub app may not support direct file-name lookup.
 
+## Manual Widget Smoke Test
+
+After changing tool or widget metadata, reconnect or refresh the app in ChatGPT so descriptors reload.
+
+1. Build and start the local server:
+
+   ```bash
+   npm run build
+   npm start -- --repo C:\path\to\repo
+   ```
+
+2. Expose `http://localhost:3327/mcp` through Secure MCP Tunnel or another HTTPS tunnel.
+3. In ChatGPT, enable Developer Mode and add the tunneled `/mcp` URL as the app endpoint.
+4. Ask ChatGPT to call `show_questions` with one single-choice question and one multi-choice question.
+5. Verify the question widget renders in ChatGPT.
+6. Select one or more options and submit.
+7. Verify ChatGPT receives a `submit_answers` result with the stored answer count.
+8. Repeat `show_questions` with the same `questionSetId` and same payload to verify idempotent replay.
+9. Repeat `show_questions` with the same `questionSetId` and changed payload to verify it is rejected.
+
 ## Authentication
 
 MVP stays simple for personal use: no OAuth or bearer token.
@@ -48,5 +68,7 @@ The first UI should stay small:
 
 - multiple-choice questions
 - selected answer state
+- no remote assets
+- no prompt preview
 
 Diff summary UI can wait until the text-only workflow proves it is useful.

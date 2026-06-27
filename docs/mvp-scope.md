@@ -35,5 +35,5 @@
 ## Phase Order
 
 1. Read-only MCP server: `project_snapshot`, `local_diff`, `read_local`.
-2. Minimal UI: `show_questions`, `submit_answers`.
+2. Minimal UI: `show_questions`, `submit_answers`, and the question widget.
 3. Hardening: repo selection, tests, truncation, setup docs.
