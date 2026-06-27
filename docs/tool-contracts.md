@@ -80,16 +80,104 @@ Hard-blocked secret-like paths and paths outside the repository are rejected. Ot
 
 Render multiple-choice questions created by ChatGPT.
 
-The server should not decide which questions to ask. It should validate and display:
+The server should not decide which questions to ask. In Phase 2A it validates and stores the question set, then returns a normal-chat text fallback. The ChatGPT App widget renderer is deferred.
 
-- question text
-- 2-5 options
-- optional recommended option
-- whether one or multiple answers are allowed
+Input:
+
+```json
+{
+  "questionSetId": "string",
+  "questions": [
+    {
+      "id": "string",
+      "question": "string",
+      "mode": "single|multi",
+      "options": [
+        {
+          "id": "string",
+          "label": "string",
+          "description": "string"
+        }
+      ],
+      "recommendedOptionId": "string|null"
+    }
+  ]
+}
+```
+
+Output:
+
+```json
+{
+  "questionSetId": "string",
+  "rendered": true,
+  "questions": [
+    {
+      "id": "string",
+      "question": "string",
+      "mode": "single|multi",
+      "options": [
+        {
+          "id": "string",
+          "label": "string",
+          "description": "string"
+        }
+      ],
+      "recommendedOptionId": "string|null"
+    }
+  ]
+}
+```
+
+Validation:
+
+- 1-10 questions per set.
+- 2-5 options per question.
+- question IDs are unique within a set.
+- option IDs are unique within each question.
+- reused `questionSetId` is allowed only for the same normalized question payload.
+- `recommendedOptionId`, when present, must match an option.
 
 ## submit_answers
 
 Store submitted answers in memory for the current session and return them in a compact format ChatGPT can use.
+
+Input:
+
+```json
+{
+  "questionSetId": "string",
+  "answers": [
+    {
+      "questionId": "string",
+      "optionIds": ["string"]
+    }
+  ]
+}
+```
+
+Output:
+
+```json
+{
+  "questionSetId": "string",
+  "answers": [
+    {
+      "questionId": "string",
+      "optionIds": ["string"]
+    }
+  ]
+}
+```
+
+Validation:
+
+- question set, question IDs, and option IDs must already exist.
+- duplicate submitted question IDs and option IDs are rejected.
+- single-choice questions require exactly one option.
+- multi-choice questions require at least one option.
+- repeated answers replace the previous stored answer for that question.
+- returned answers are ordered by the original question order.
 
 ## Deferred
 

@@ -267,6 +267,8 @@ Lockfiles are not in the default allowlist. They can be read only when locally c
 
 Purpose: render multiple-choice questions created by ChatGPT.
 
+Phase 2A behavior: validate and store the question set, then return a normal-chat text fallback with `rendered: true`. The ChatGPT App widget renderer is deferred to Phase 2B.
+
 Inputs:
 
 ```json
@@ -295,7 +297,22 @@ Returns:
 ```json
 {
   "questionSetId": "string",
-  "rendered": true
+  "rendered": true,
+  "questions": [
+    {
+      "id": "string",
+      "question": "string",
+      "mode": "single|multi",
+      "options": [
+        {
+          "id": "string",
+          "label": "string",
+          "description": "string"
+        }
+      ],
+      "recommendedOptionId": "string|null"
+    }
+  ]
 }
 ```
 
@@ -304,6 +321,9 @@ Implementation notes:
 - The server validates and renders questions.
 - ChatGPT decides which questions to ask.
 - Keep option count small, usually 2-5.
+- Keep 1-10 questions per set.
+- Reusing `questionSetId` is allowed only for the same normalized question payload.
+- Recommended options must match an option in the same question.
 
 ### submit_answers
 
@@ -336,6 +356,15 @@ Returns:
   ]
 }
 ```
+
+Implementation notes:
+
+- Reject unknown question sets, question IDs, and option IDs.
+- Reject duplicate submitted question IDs and duplicate option IDs.
+- Require exactly one option for `single` questions.
+- Require one or more options for `multi` questions.
+- Repeated answers replace the previous stored answer for that question.
+- Return stored answers in the original question order.
 
 ## Deferred
 

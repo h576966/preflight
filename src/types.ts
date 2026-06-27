@@ -80,3 +80,45 @@ export type ReadLocal = {
   omittedFiles: OmittedReadLocalFile[];
   truncated: boolean;
 };
+
+export type QuestionMode = "single" | "multi";
+
+export type QuestionOption = {
+  id: string;
+  label: string;
+  description: string;
+};
+
+export type Question = {
+  id: string;
+  question: string;
+  mode: QuestionMode;
+  options: QuestionOption[];
+  recommendedOptionId: string | null;
+};
+
+export type QuestionAnswer = {
+  questionId: string;
+  optionIds: string[];
+};
+
+export type ShowQuestionsInput = {
+  questionSetId: string;
+  questions: Array<Omit<Question, "recommendedOptionId"> & { recommendedOptionId?: string | null }>;
+};
+
+export type ShowQuestionsResult = {
+  questionSetId: string;
+  rendered: true;
+  questions: Question[];
+};
+
+export type SubmitAnswersInput = {
+  questionSetId: string;
+  answers: QuestionAnswer[];
+};
+
+export type SubmitAnswersResult = {
+  questionSetId: string;
+  answers: QuestionAnswer[];
+};

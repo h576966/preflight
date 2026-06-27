@@ -27,3 +27,5 @@ The initial server exposes a local MCP endpoint at `http://localhost:3327/mcp` w
 - `project_snapshot`
 - `local_diff`
 - `read_local`
+- `show_questions`
+- `submit_answers`
