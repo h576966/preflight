@@ -28,6 +28,8 @@ Must support path filters, context lines, byte limits, and truncation metadata.
 
 `project_snapshot` provides changed-file metadata. When ChatGPT explicitly calls `local_diff`, return bounded patches by default instead of adding another metadata-only step.
 
+Untracked file contents are out of scope for this tool. `local_diff` should list tracked patches only and report omitted files when paths are blocked, ignored, binary/unreadable, or beyond the byte budget.
+
 ## read_local
 
 Read selected local file ranges only.

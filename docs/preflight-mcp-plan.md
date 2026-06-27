@@ -173,6 +173,12 @@ Returns:
       "deletions": 0,
       "patch": "string"
     }
+  ],
+  "omittedFiles": [
+    {
+      "path": "string",
+      "reason": "secret-blocked|ignored|binary-or-unreadable|byte-budget"
+    }
   ]
 }
 ```
@@ -181,6 +187,7 @@ Implementation notes:
 
 - No branch comparison in MVP; GitHub can handle remote comparisons.
 - `project_snapshot` already provides changed-file metadata, so this tool returns bounded patches by default.
+- Untracked file contents are not included; use `project_snapshot` for untracked paths and wait for `read_local` for explicit untracked reads.
 - Apply deny patterns before returning patches.
 - Mark truncation clearly.
 
@@ -359,6 +366,8 @@ Hard-blocked patterns:
 .env.*
 *.key
 *.pem
+*.crt
+*.cer
 *.p12
 *.pfx
 ```

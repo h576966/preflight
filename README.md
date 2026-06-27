@@ -13,3 +13,16 @@ Start here:
 - [AGENTS.md](AGENTS.md) - durable repo instructions for coding agents
 - [docs/README.md](docs/README.md) - documentation index
 - [docs/preflight-mcp-plan.md](docs/preflight-mcp-plan.md) - detailed current plan
+
+## Local Development
+
+```bash
+npm install
+npm test
+npm start -- --repo C:\path\to\repo
+```
+
+The initial server exposes a local MCP endpoint at `http://localhost:3327/mcp` with these tools:
+
+- `project_snapshot`
+- `local_diff`

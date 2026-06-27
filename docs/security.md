@@ -29,6 +29,8 @@ MVP is strictly read-only.
 .env.*
 *.key
 *.pem
+*.crt
+*.cer
 *.p12
 *.pfx
 ```

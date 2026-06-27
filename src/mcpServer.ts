@@ -1,0 +1,100 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
+import { DEFAULT_LIMITS } from "./constants.js";
+import { createLocalDiff } from "./localDiff.js";
+import { createProjectSnapshot } from "./projectSnapshot.js";
+
+export type PreflightServerOptions = {
+  repoPath: string;
+};
+
+export function createPreflightMcpServer(options: PreflightServerOptions): McpServer {
+  const server = new McpServer(
+    {
+      name: "preflight",
+      version: "0.1.0"
+    },
+    {
+      instructions: [
+        "Preflight is a read-only local repository companion.",
+        "Use project_snapshot for local worktree facts that ChatGPT's GitHub tool cannot see.",
+        "Use local_diff for bounded tracked-file patches when local changes matter.",
+        "Prefer GitHub for committed remote code/docs; use Preflight for local state, diffs, and exact local paths."
+      ].join(" ")
+    }
+  );
+
+  server.registerTool(
+    "project_snapshot",
+    {
+      title: "Project Snapshot",
+      description: [
+        "Use this when you need local worktree facts for the active repository.",
+        "Returns repository identity, changed files, instruction files, and small high-value TS/JS/Python project context.",
+        "This tool is read-only and does not replace GitHub for committed remote context."
+      ].join(" "),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: false
+      }
+    },
+    async (): Promise<CallToolResult> => {
+      const snapshot = createProjectSnapshot({ repoPath: options.repoPath });
+      return {
+        structuredContent: snapshot,
+        content: [
+          {
+            type: "text",
+            text: `Project snapshot for ${snapshot.name}: ${snapshot.changedFiles.length} changed file(s).`
+          }
+        ]
+      };
+    }
+  );
+
+  server.registerTool(
+    "local_diff",
+    {
+      title: "Local Diff",
+      description: [
+        "Use this when you need bounded patch output for tracked local changes in the active repository.",
+        "Supports staged, unstaged, and all tracked changes.",
+        "This tool is read-only and does not include untracked file contents; use project_snapshot to see untracked paths."
+      ].join(" "),
+      inputSchema: {
+        scope: z.enum(["staged", "unstaged", "all"]),
+        paths: z.array(z.string()).optional(),
+        contextLines: z.number().int().min(0).max(20).optional(),
+        maxBytes: z.number().int().min(1).max(DEFAULT_LIMITS.maxDiffBytes).optional()
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: false
+      }
+    },
+    async (args): Promise<CallToolResult> => {
+      const diff = createLocalDiff({
+        repoPath: options.repoPath,
+        scope: args.scope,
+        paths: args.paths,
+        contextLines: args.contextLines,
+        maxBytes: args.maxBytes
+      });
+
+      return {
+        structuredContent: diff,
+        content: [
+          {
+            type: "text",
+            text: `Local ${args.scope} diff: ${diff.files.length} file patch(es), ${diff.omittedFiles.length} omitted.`
+          }
+        ]
+      };
+    }
+  );
+
+  return server;
+}
