@@ -2,6 +2,8 @@
 
 The server should expose local facts and alignment UI only. ChatGPT remains responsible for reasoning, recommendations, and any Codex prompt writing.
 
+Every tool that returns `structuredContent` declares an `outputSchema` matching the documented successful response shape.
+
 ## project_snapshot
 
 Return the current local project state:
@@ -144,7 +146,7 @@ Validation:
 
 UI:
 
-- widget resource: `ui://widget/questions-v5.html`
+- widget resource: `ui://widget/questions-v6.html`
 - widget MIME type: `text/html;profile=mcp-app`
 - no remote assets or external CSP domains
 - widget uses the MCP Apps bridge for tool results and widget-initiated tool calls
@@ -154,6 +156,8 @@ UI:
 - widget stores selections and submitted answers in `widgetState` when available
 - widget uses ChatGPT `sendFollowUpMessage` first so ChatGPT continues with selected answers
 - widget falls back to initialized MCP Apps `ui/message` when the ChatGPT helper is unavailable
+- widget validates `submit_answers` before marking answers as submitted or sending continuation
+- failed or unknown question-set submits keep selections, show a retryable error, and must not trigger continuation
 
 ## submit_answers
 

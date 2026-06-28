@@ -3,12 +3,13 @@ import test from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { createPreflightMcpServer, createPreflightMcpServerFactory } from "../src/mcpServer.js";
-import { startMcpHttpServer } from "../src/httpServer.js";
+import { DEFAULT_HTTP_HOST, startMcpHttpServer } from "../src/httpServer.js";
 
-test("startMcpHttpServer returns the actual bound port for ephemeral port 0", async () => {
+test("startMcpHttpServer binds to loopback and returns the actual bound port for ephemeral port 0", async () => {
   const started = await startMcpHttpServer(() => createPreflightMcpServer({ repoPath: process.cwd() }), 0);
 
   try {
+    assert.equal(started.host, DEFAULT_HTTP_HOST);
     assert.ok(Number.isInteger(started.port));
     assert.ok(started.port > 0);
   } finally {
@@ -32,6 +33,26 @@ test("startMcpHttpServer accepts repeated client sessions", async () => {
       await client.close();
     }
   } finally {
+    await started.close();
+  }
+});
+
+test("structured-content tools declare output schemas", async () => {
+  const started = await startMcpHttpServer(() => createPreflightMcpServer({ repoPath: process.cwd() }), 0);
+  const client = new Client({ name: "preflight-output-schema-test", version: "0.1.0" });
+
+  try {
+    const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${started.port}/mcp`));
+    await client.connect(transport);
+
+    const tools = await client.listTools();
+    assertToolOutputSchema(tools.tools, "project_snapshot", ["root", "git"]);
+    assertToolOutputSchema(tools.tools, "local_diff", ["truncated", "files", "omittedFiles"]);
+    assertToolOutputSchema(tools.tools, "read_local", ["files", "omittedFiles", "truncated"]);
+    assertToolOutputSchema(tools.tools, "show_questions", ["questionSetId", "rendered", "questions"]);
+    assertToolOutputSchema(tools.tools, "submit_answers", ["questionSetId", "answers", "answeredQuestions"]);
+  } finally {
+    await client.close().catch(() => undefined);
     await started.close();
   }
 });
@@ -78,6 +99,20 @@ test("question tools return a stable widget session id", async () => {
     await started.close();
   }
 });
+
+function assertToolOutputSchema(
+  tools: Array<{ name: string; outputSchema?: { type?: unknown; properties?: Record<string, unknown> } }>,
+  name: string,
+  expectedProperties: string[]
+): void {
+  const tool = tools.find((candidate) => candidate.name === name);
+  assert.ok(tool, `missing tool ${name}`);
+  assert.equal(tool.outputSchema?.type, "object", `${name} should declare an object output schema`);
+
+  for (const property of expectedProperties) {
+    assert.ok(tool.outputSchema?.properties?.[property], `${name} output schema should include ${property}`);
+  }
+}
 
 test("question state is shared across MCP HTTP sessions with the Preflight server factory", async () => {
   const started = await startMcpHttpServer(createPreflightMcpServerFactory({ repoPath: process.cwd() }), 0);

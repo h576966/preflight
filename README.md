@@ -23,7 +23,7 @@ npm run smoke
 npm start -- --repo C:\path\to\repo
 ```
 
-The initial server exposes a local MCP endpoint at `http://localhost:3327/mcp`, plus a small ChatGPT App question widget, with these tools:
+The initial server exposes a local MCP endpoint at `http://127.0.0.1:3327/mcp`, plus a small ChatGPT App question widget, with these tools:
 
 - `project_snapshot`
 - `local_diff`

@@ -16,7 +16,7 @@ const EXPECTED_TOOLS = [
 
 async function main(): Promise<void> {
   const started = await startMcpHttpServer(createPreflightMcpServerFactory({ repoPath: process.cwd() }), 0);
-  const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${started.port}/mcp`));
+  const transport = new StreamableHTTPClientTransport(new URL(`http://${started.host}:${started.port}/mcp`));
   const client = new Client({ name: "preflight-smoke", version: "0.1.0" });
   let connected = false;
 
@@ -26,6 +26,11 @@ async function main(): Promise<void> {
 
     const tools = await client.listTools();
     assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), EXPECTED_TOOLS);
+    assertToolOutputSchema(tools.tools, "project_snapshot", ["root", "git"]);
+    assertToolOutputSchema(tools.tools, "local_diff", ["truncated", "files", "omittedFiles"]);
+    assertToolOutputSchema(tools.tools, "read_local", ["files", "omittedFiles", "truncated"]);
+    assertToolOutputSchema(tools.tools, "show_questions", ["questionSetId", "rendered", "questions"]);
+    assertToolOutputSchema(tools.tools, "submit_answers", ["questionSetId", "answers", "answeredQuestions"]);
 
     const resources = await client.listResources();
     assert.ok(resources.resources.some((resource) => resource.uri === QUESTION_WIDGET_URI));
@@ -41,7 +46,7 @@ async function main(): Promise<void> {
     assert.equal(typeof content?.name, "string");
     assert.equal(typeof content?.git, "object");
 
-    process.stdout.write(`Preflight smoke OK on http://127.0.0.1:${started.port}/mcp\n`);
+    process.stdout.write(`Preflight smoke OK on http://${started.host}:${started.port}/mcp\n`);
   } finally {
     if (connected) {
       await client.close();
@@ -57,3 +62,17 @@ main().catch((error: unknown) => {
   process.stderr.write(`Preflight smoke failed: ${message}\n`);
   process.exitCode = 1;
 });
+
+function assertToolOutputSchema(
+  tools: Array<{ name: string; outputSchema?: { type?: unknown; properties?: Record<string, unknown> } }>,
+  name: string,
+  expectedProperties: string[]
+): void {
+  const tool = tools.find((candidate) => candidate.name === name);
+  assert.ok(tool, `missing tool ${name}`);
+  assert.equal(tool.outputSchema?.type, "object", `${name} should declare an object output schema`);
+
+  for (const property of expectedProperties) {
+    assert.ok(tool.outputSchema?.properties?.[property], `${name} output schema should include ${property}`);
+  }
+}

@@ -326,7 +326,7 @@ Implementation notes:
 - Keep 1-4 questions per set.
 - Reusing `questionSetId` is allowed only for the same normalized question payload.
 - Recommended options must match an option in the same question.
-- Render widget resource `ui://widget/questions-v5.html`.
+- Render widget resource `ui://widget/questions-v6.html`.
 - Keep widget self-contained with no remote assets and empty CSP domain lists.
 - Let the widget call `submit_answers` after the user answers all displayed questions.
 - Store question sets in a shared in-memory store for the running Preflight process so widget calls and assistant calls can use different MCP HTTP sessions.
@@ -470,6 +470,17 @@ show_questions(...) only when alignment input would materially improve reliabili
 submit_answers(...)
 ChatGPT writes a Codex-ready prompt only when requested, when the user asks for Codex-suitable implementation steps, or when a prompt is clearly the most useful final artifact
 ```
+
+Codex-ready prompts produced from Preflight context should stay concise and task-focused. Put the task instructions first, then separate supporting context. Include only relevant local/GitHub facts, and be specific about desired outcome, scope, constraints, non-goals, requested changes, verification steps, and final report expectations. Prefer smaller focused Codex tasks over broad vague prompts.
+
+Suggested prompt shape:
+
+1. Goal
+2. Context
+3. Constraints / non-goals
+4. Requested changes
+5. Verification
+6. Final report expectations
 
 ## Implementation Phases
 

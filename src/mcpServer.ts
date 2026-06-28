@@ -29,6 +29,73 @@ const questionOptionSchema = z.object({
   description: z.string()
 });
 
+const changedFileSchema = z.object({
+  path: z.string(),
+  status: z.string(),
+  staged: z.boolean(),
+  unstaged: z.boolean(),
+  untracked: z.boolean()
+});
+
+const contextFileSchema = z.object({
+  path: z.string(),
+  kind: z.enum(["instruction", "manifest", "config"]),
+  content: z.string(),
+  truncated: z.boolean()
+});
+
+const projectSnapshotOutputSchema = {
+  root: z.string(),
+  name: z.string(),
+  git: z.object({
+    remoteUrl: z.string().nullable(),
+    ownerRepo: z.string().nullable(),
+    branch: z.string(),
+    head: z.string().nullable(),
+    upstream: z.string().nullable()
+  }),
+  changedFiles: z.array(changedFileSchema),
+  instructionFiles: z.array(z.string()),
+  contextFiles: z.array(contextFileSchema),
+  stackHints: z.array(z.string()),
+  limits: z.object({
+    maxDiffBytes: z.number(),
+    maxReadBytes: z.number(),
+    maxSnapshotFileBytes: z.number(),
+    maxSnapshotContentBytes: z.number()
+  })
+};
+
+const localDiffOutputSchema = {
+  truncated: z.boolean(),
+  files: z.array(z.object({
+    path: z.string(),
+    changeType: z.enum(["added", "modified", "deleted", "renamed"]),
+    additions: z.number(),
+    deletions: z.number(),
+    patch: z.string()
+  })),
+  omittedFiles: z.array(z.object({
+    path: z.string(),
+    reason: z.enum(["secret-blocked", "ignored", "binary-or-unreadable", "byte-budget"])
+  }))
+};
+
+const readLocalOutputSchema = {
+  files: z.array(z.object({
+    path: z.string(),
+    startLine: z.number(),
+    endLine: z.number(),
+    content: z.string(),
+    truncated: z.boolean()
+  })),
+  omittedFiles: z.array(z.object({
+    path: z.string(),
+    reason: z.enum(["ignored", "not-allowed", "not-found", "binary-or-unreadable", "byte-budget"])
+  })),
+  truncated: z.boolean()
+};
+
 const questionInputSchema = z.object({
   id: z.string(),
   question: z.string(),
@@ -74,6 +141,7 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
         "Do not use show_questions as a default step when a direct answer is sufficient.",
         "After calling show_questions, wait for submit_answers or a Preflight widget follow-up before continuing.",
         "Produce Codex-ready prompts only when requested, when the user asks for Codex-suitable implementation steps, or when a prompt is clearly the most useful final artifact.",
+        "When producing a Codex-ready prompt, put task instructions first, separate context, keep scope focused, include constraints, requested changes, verification steps, and final report expectations, and include only relevant Preflight or GitHub context.",
         "Prefer GitHub for committed remote code/docs; use Preflight for local state, diffs, and exact local paths."
       ].join(" ")
     }
@@ -90,6 +158,7 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
         "Returns repository identity, changed files, instruction files, and small high-value TS/JS/Python project context.",
         "This tool is read-only and does not replace GitHub for committed remote context."
       ].join(" "),
+      outputSchema: projectSnapshotOutputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -125,6 +194,7 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
         contextLines: z.number().int().min(0).max(20).optional(),
         maxBytes: z.number().int().min(1).max(DEFAULT_LIMITS.maxDiffBytes).optional()
       },
+      outputSchema: localDiffOutputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -170,6 +240,7 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
         })).min(1).max(20),
         maxBytes: z.number().int().min(1).max(DEFAULT_LIMITS.maxReadBytes).optional()
       },
+      outputSchema: readLocalOutputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,

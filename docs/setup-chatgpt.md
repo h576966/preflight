@@ -37,7 +37,7 @@ npm start -- --repo C:\path\to\repo --port 3327
 The local MCP endpoint is:
 
 ```text
-http://localhost:3327/mcp
+http://127.0.0.1:3327/mcp
 ```
 
 Keep this terminal running while ChatGPT uses Preflight.
@@ -108,7 +108,7 @@ ChatGPT can cache tool and widget metadata. After changing tool names, descripti
 The current question widget resource is:
 
 ```text
-ui://widget/questions-v5.html
+ui://widget/questions-v6.html
 ```
 
 If ChatGPT reports `Failed to fetch template`, it is usually using stale widget metadata. Refresh metadata and start a new chat rather than adding old widget URI aliases back to the server.
@@ -124,15 +124,16 @@ Use a new ChatGPT chat after creating or refreshing Preflight.
 5. Ask ChatGPT to call `show_questions` with one single-choice and one multi-choice question.
 6. Confirm the question widget renders.
 7. Answer every displayed question in the widget and submit.
-8. Confirm ChatGPT continues after submit and includes the selected answer labels.
+8. Confirm a successful submit keeps the selections selected, stores the answers, and ChatGPT continues with the selected answer labels.
 9. Repeat `show_questions` with the same `questionSetId` and same payload to verify idempotent replay.
 10. Repeat `show_questions` with the same `questionSetId` and changed payload to verify it is rejected.
+11. To test failed submit behavior, render questions, restart Preflight without re-rendering the same question set, then submit from the old widget. The widget should show an unknown-question-set error, keep selections visible, allow retry, and ChatGPT should not continue automatically.
 
 ## Expected Failures And Fixes
 
 Local endpoint unreachable:
 
-- Confirm the Preflight terminal says it is listening on `http://localhost:3327/mcp`.
+- Confirm the Preflight terminal says it is listening on `http://127.0.0.1:3327/mcp`.
 - A plain browser GET may not show a useful page because `/mcp` expects MCP requests.
 - Run `npm run smoke` to verify local MCP wiring.
 
@@ -153,8 +154,14 @@ Widget does not render or update:
 
 - Refresh metadata in ChatGPT settings.
 - Start a new chat.
-- Confirm `show_questions` advertises `ui://widget/questions-v5.html`.
+- Confirm `show_questions` advertises `ui://widget/questions-v6.html`.
 - If the error says `Failed to fetch template`, assume stale metadata first.
+
+Widget submit reports an unknown question set:
+
+- The most likely cause is that Preflight restarted after `show_questions` rendered the widget.
+- The widget should keep selected answers visible and should not ask ChatGPT to continue.
+- Refresh metadata, start a new chat, or ask ChatGPT to call `show_questions` again so the running server has the question set.
 
 Permission or policy issue:
 
@@ -193,7 +200,7 @@ Initialize a profile for the local HTTP MCP endpoint. Replace the tunnel ID with
   --sample sample_mcp_remote_no_auth `
   --profile preflight-local `
   --tunnel-id tunnel_0123456789abcdef0123456789abcdef `
-  --mcp-server-url "http://localhost:3327/mcp"
+  --mcp-server-url "http://127.0.0.1:3327/mcp"
 ```
 
 Validate and run:

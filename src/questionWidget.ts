@@ -1,7 +1,167 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-export const QUESTION_WIDGET_URI = "ui://widget/questions-v5.html";
+export const QUESTION_WIDGET_URI = "ui://widget/questions-v6.html";
 export const QUESTION_WIDGET_MIME_TYPE = "text/html;profile=mcp-app";
+
+export const QUESTION_SUBMIT_VALIDATION_SCRIPT = String.raw`
+    function extractSubmitStructuredContent(payload) {
+      return payload?.structuredContent
+        || payload?.result?.structuredContent
+        || payload?.result?.content?.structuredContent
+        || payload?.content?.structuredContent
+        || payload?.toolOutput
+        || payload?.toolResponse?.structuredContent
+        || null;
+    }
+
+    function isSubmitObject(value) {
+      return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+    }
+
+    function extractToolErrorText(payload) {
+      const contentCandidates = [payload?.content, payload?.result?.content];
+      for (const content of contentCandidates) {
+        if (!Array.isArray(content)) continue;
+        const text = content
+          .filter((item) => item?.type === "text" && typeof item.text === "string")
+          .map((item) => item.text.trim())
+          .filter(Boolean)
+          .join(" ");
+        if (text) return text;
+      }
+      return "";
+    }
+
+    function formatSubmitFailure(toolResult, structuredContent) {
+      if (isSubmitObject(structuredContent) && structuredContent.error === "unknown_question_set") {
+        const known = Array.isArray(structuredContent.knownQuestionSetIds) && structuredContent.knownQuestionSetIds.length > 0
+          ? structuredContent.knownQuestionSetIds.join(", ")
+          : "none";
+        const likelyCause = typeof structuredContent.likelyCause === "string"
+          ? " Likely cause: " + structuredContent.likelyCause
+          : "";
+        return "Submit failed: unknown question set " + structuredContent.questionSetId + ". Known question sets: " + known + "." + likelyCause;
+      }
+
+      const toolText = extractToolErrorText(toolResult);
+      if (toolText) return "Submit failed: " + toolText;
+
+      if (isSubmitObject(structuredContent) && typeof structuredContent.error === "string") {
+        return "Submit failed: " + structuredContent.error;
+      }
+
+      return "Submit failed: submit_answers did not return a valid answer set.";
+    }
+
+    function assertString(value, message) {
+      if (typeof value !== "string" || value.length === 0) {
+        throw new Error(message);
+      }
+    }
+
+    function validateQuestionAnswer(answer) {
+      if (!isSubmitObject(answer)) throw new Error("Submit failed: malformed answer entry.");
+      assertString(answer.questionId, "Submit failed: answer is missing questionId.");
+      if (!Array.isArray(answer.optionIds) || answer.optionIds.some((optionId) => typeof optionId !== "string" || optionId.length === 0)) {
+        throw new Error("Submit failed: answer optionIds are malformed.");
+      }
+    }
+
+    function validateAnsweredQuestion(answeredQuestion) {
+      if (!isSubmitObject(answeredQuestion)) throw new Error("Submit failed: malformed answeredQuestions entry.");
+      assertString(answeredQuestion.questionId, "Submit failed: answered question is missing questionId.");
+      assertString(answeredQuestion.question, "Submit failed: answered question is missing text.");
+      if (!Array.isArray(answeredQuestion.optionIds) || answeredQuestion.optionIds.some((optionId) => typeof optionId !== "string" || optionId.length === 0)) {
+        throw new Error("Submit failed: answered question optionIds are malformed.");
+      }
+      if (!Array.isArray(answeredQuestion.selectedOptions) || answeredQuestion.selectedOptions.length !== answeredQuestion.optionIds.length) {
+        throw new Error("Submit failed: selected option labels are missing.");
+      }
+      for (const option of answeredQuestion.selectedOptions) {
+        if (!isSubmitObject(option) || typeof option.label !== "string" || option.label.length === 0) {
+          throw new Error("Submit failed: selected option labels are missing.");
+        }
+      }
+    }
+
+    function validateSubmitAnswersResult(toolResult, expectedQuestionSetId) {
+      const structuredContent = extractSubmitStructuredContent(toolResult) || (isSubmitObject(toolResult) ? toolResult : null);
+      const isToolError = toolResult?.isError === true || toolResult?.result?.isError === true;
+
+      if (isToolError || structuredContent?.error) {
+        throw new Error(formatSubmitFailure(toolResult, structuredContent));
+      }
+
+      if (!isSubmitObject(structuredContent)) {
+        throw new Error("Submit failed: submit_answers did not return structured content.");
+      }
+      if (structuredContent.questionSetId !== expectedQuestionSetId) {
+        throw new Error("Submit failed: submit_answers returned a different question set.");
+      }
+      if (!Array.isArray(structuredContent.answers)) {
+        throw new Error("Submit failed: submit_answers did not return answers.");
+      }
+      if (!Array.isArray(structuredContent.answeredQuestions)) {
+        throw new Error("Submit failed: submit_answers did not return selected answer labels.");
+      }
+      if (structuredContent.answers.length === 0) {
+        throw new Error("Submit failed: submit_answers returned no answers.");
+      }
+      if (structuredContent.answeredQuestions.length !== structuredContent.answers.length) {
+        throw new Error("Submit failed: selected answer labels do not match answers.");
+      }
+
+      structuredContent.answers.forEach(validateQuestionAnswer);
+      structuredContent.answeredQuestions.forEach(validateAnsweredQuestion);
+      validateAnsweredQuestionsMatchAnswers(structuredContent.answers, structuredContent.answeredQuestions);
+
+      return structuredContent;
+    }
+
+    function validateAnsweredQuestionsMatchAnswers(answers, answeredQuestions) {
+      const answerByQuestionId = new Map();
+      for (const answer of answers) {
+        if (answerByQuestionId.has(answer.questionId)) {
+          throw new Error("Submit failed: duplicate answer questionId.");
+        }
+        answerByQuestionId.set(answer.questionId, answer);
+      }
+
+      const seenAnsweredQuestionIds = new Set();
+      for (const answeredQuestion of answeredQuestions) {
+        if (seenAnsweredQuestionIds.has(answeredQuestion.questionId)) {
+          throw new Error("Submit failed: duplicate answered question labels.");
+        }
+        seenAnsweredQuestionIds.add(answeredQuestion.questionId);
+
+        const answer = answerByQuestionId.get(answeredQuestion.questionId);
+        if (!answer) {
+          throw new Error("Submit failed: selected answer labels do not match answers.");
+        }
+        if (!sameStringArray(answer.optionIds, answeredQuestion.optionIds)) {
+          throw new Error("Submit failed: selected answer labels do not match answer option IDs.");
+        }
+        const selectedOptionIds = answeredQuestion.selectedOptions.map((option) => option.id);
+        if (!sameStringArray(answer.optionIds, selectedOptionIds)) {
+          throw new Error("Submit failed: selected option labels do not match answer option IDs.");
+        }
+      }
+    }
+
+    function sameStringArray(left, right) {
+      return Array.isArray(left)
+        && Array.isArray(right)
+        && left.length === right.length
+        && left.every((value, index) => value === right[index]);
+    }
+
+    function formatSubmittedAnswers(structuredContent) {
+      return structuredContent.answeredQuestions.map((answer) => {
+        const selectedLabels = answer.selectedOptions.map((option) => option.label).join(", ");
+        return "- " + answer.question + ": " + selectedLabels;
+      }).join("\n");
+    }
+`;
 
 export function createQuestionWidgetResourceMetadata() {
   return {
@@ -224,6 +384,8 @@ export function createQuestionWidgetHtml(): string {
     let initialPollId = null;
     let bridgeReadyPromise = null;
     const pendingBridgeRequests = new Map();
+
+${QUESTION_SUBMIT_VALIDATION_SCRIPT}
 
     function getToolOutput() {
       const toolOutput = readOpenAiGlobal("toolOutput");
@@ -556,13 +718,21 @@ export function createQuestionWidgetHtml(): string {
     }
 
     function applySubmittedResult(result) {
-      if (!currentData || result.questionSetId !== currentData.questionSetId) return;
+      if (!currentData) return;
 
-      const selections = answersToSelections(result.answers);
+      let structuredContent;
+      try {
+        structuredContent = validateSubmitAnswersResult(result, currentData.questionSetId);
+      } catch (error) {
+        showSubmitFailure(error);
+        return;
+      }
+
+      const selections = answersToSelections(structuredContent.answers);
       persistWidgetState({
         selections,
         submitStatus: "submitted",
-        submittedResult: result
+        submittedResult: structuredContent
       });
       restoreSelections();
       updateSubmitState();
@@ -629,26 +799,6 @@ export function createQuestionWidgetHtml(): string {
       status.textContent = remaining > 0
         ? "Answer " + remaining + " more question(s)."
         : answers.length + " answer(s) selected.";
-    }
-
-    function formatSubmittedAnswers(structuredContent, fallbackAnswers) {
-      if (Array.isArray(structuredContent?.answeredQuestions) && structuredContent.answeredQuestions.length > 0) {
-        return structuredContent.answeredQuestions.map((answer) => {
-          const selectedLabels = Array.isArray(answer.selectedOptions)
-            ? answer.selectedOptions.map((option) => option.label).join(", ")
-            : answer.optionIds.join(", ");
-          return "- " + answer.question + ": " + selectedLabels;
-        }).join("\n");
-      }
-
-      return fallbackAnswers.map((answer) => {
-        const question = currentData.questions.find((item) => item.id === answer.questionId);
-        const optionLabels = answer.optionIds.map((optionId) => {
-          const option = question?.options.find((item) => item.id === optionId);
-          return option?.label || optionId;
-        }).join(", ");
-        return "- " + (question?.question || answer.questionId) + ": " + optionLabels;
-      }).join("\n");
     }
 
     async function notifyModelAfterSubmit(summary) {
@@ -742,17 +892,16 @@ export function createQuestionWidgetHtml(): string {
           answers
         });
 
-        const structuredContent = extractStructuredContent(result) || result || {};
-        const storedAnswers = structuredContent.answers || answers;
-        const summary = formatSubmittedAnswers(structuredContent, storedAnswers);
+        const structuredContent = validateSubmitAnswersResult(result, currentData.questionSetId);
+        const summary = formatSubmittedAnswers(structuredContent);
         persistWidgetState({
-          selections: answersToSelections(storedAnswers),
+          selections: answersToSelections(structuredContent.answers),
           submitStatus: "submitted",
           submittedResult: structuredContent
         });
         const continuationResult = await notifyModelAfterSubmit(summary);
         if (status) {
-          status.textContent = submittedStatusText(storedAnswers.length, continuationResult);
+          status.textContent = submittedStatusText(structuredContent.answers.length, continuationResult);
         }
         if (button) button.disabled = true;
         notifyIntrinsicHeight();
@@ -765,6 +914,20 @@ export function createQuestionWidgetHtml(): string {
         if (status) status.textContent = formatErrorMessage(error);
         if (button) button.disabled = answers.length === 0;
       }
+    }
+
+    function showSubmitFailure(error) {
+      const status = app.querySelector("#status");
+      const button = app.querySelector("button[type='submit']");
+      const answers = collectAnswers();
+      persistWidgetState({
+        selections: answersToSelections(answers),
+        submitStatus: "idle",
+        submittedResult: null
+      });
+      if (status) status.textContent = formatErrorMessage(error);
+      if (button) button.disabled = answers.length === 0;
+      notifyIntrinsicHeight();
     }
 
     window.addEventListener("message", handleBridgeMessage);

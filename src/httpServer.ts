@@ -6,10 +6,13 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export type StartedHttpServer = {
   close: () => Promise<void>;
+  host: string;
   port: number;
 };
 
 export type McpServerFactory = () => McpServer;
+
+export const DEFAULT_HTTP_HOST = "127.0.0.1";
 
 type McpSession = {
   closed: boolean;
@@ -60,14 +63,16 @@ export async function startMcpHttpServer(serverFactory: McpServerFactory, port: 
     }
   });
 
+  let boundHost = DEFAULT_HTTP_HOST;
   let boundPort = port;
 
   await new Promise<void>((resolve, reject) => {
     httpServer.once("error", reject);
-    httpServer.listen(port, () => {
+    httpServer.listen(port, DEFAULT_HTTP_HOST, () => {
       httpServer.off("error", reject);
       const address = httpServer.address() as AddressInfo | null;
       if (address) {
+        boundHost = address.address;
         boundPort = address.port;
       }
       resolve();
@@ -75,6 +80,7 @@ export async function startMcpHttpServer(serverFactory: McpServerFactory, port: 
   });
 
   return {
+    host: boundHost,
     port: boundPort,
     close: async () => {
       await Promise.all(Array.from(sessions.values(), (session) => closeSession(session, sessions)));

@@ -17,6 +17,8 @@ Use alignment questions naturally when user input would materially improve relia
 
 Codex-ready prompts are optional outputs. Produce them when the user asks for one, asks for next implementation steps suitable for Codex, or when a prompt is clearly the most useful final artifact.
 
+When producing a Codex-ready prompt from Preflight context, put task instructions first, separate context from instructions, keep the task focused, include only relevant local/GitHub facts, state constraints and non-goals, include verification steps for implementation work, and say what final report is expected.
+
 ## Working Style
 
 - Be concise.

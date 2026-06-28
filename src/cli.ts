@@ -10,7 +10,7 @@ async function main(): Promise<void> {
     options.port
   );
 
-  process.stderr.write(`Preflight MCP server listening on http://localhost:${started.port}/mcp\n`);
+  process.stderr.write(`Preflight MCP server listening on http://${started.host}:${started.port}/mcp\n`);
   process.stderr.write(`Repository: ${options.repoPath}\n`);
 }
 
