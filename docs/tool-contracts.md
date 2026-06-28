@@ -131,7 +131,7 @@ Output:
 
 Validation:
 
-- 1-10 questions per set.
+- 1-4 questions per set.
 - 2-5 options per question.
 - question IDs are unique within a set.
 - option IDs are unique within each question.
@@ -140,7 +140,7 @@ Validation:
 
 UI:
 
-- widget resource: `ui://widget/questions-v4.html`
+- widget resource: `ui://widget/questions-v5.html`
 - widget MIME type: `text/html;profile=mcp-app`
 - no remote assets or external CSP domains
 - widget uses the MCP Apps bridge for tool results and widget-initiated tool calls
@@ -148,7 +148,8 @@ UI:
 - widget calls `submit_answers` after the user answers all displayed questions
 - tool results set `_meta["openai/widgetSessionId"]` to `questionSetId`
 - widget stores selections and submitted answers in `widgetState` when available
-- widget uses `sendFollowUpMessage` when available so ChatGPT continues with the selected answers
+- widget uses ChatGPT `sendFollowUpMessage` first so ChatGPT continues with selected answers
+- widget falls back to initialized MCP Apps `ui/message` when the ChatGPT helper is unavailable
 
 ## submit_answers
 

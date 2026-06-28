@@ -77,7 +77,7 @@ Preflight should expose GitHub identity hints, but it should not call the GitHub
 - Hard-block `.env`, `.env.*`, private keys, certificates, and similar secret material.
 - Assume TS/JS and Python projects only for MVP.
 - Select the active repository with `--repo <path>`, falling back to the current working directory.
-- Use Secure MCP Tunnel as the default ChatGPT connection path.
+- Use Tailscale Funnel as the practical default ChatGPT connection path for this personal setup.
 - Keep MVP app authentication simple: no OAuth/bearer token in the first personal-use version.
 - Use an 80/20 local-read model: changed files, untracked files, instruction files, and a small allowlist of high-value non-secret TS/JS/Python project files.
 - In-memory session state only.
@@ -321,16 +321,16 @@ Implementation notes:
 - The server validates and renders questions.
 - ChatGPT decides which questions to ask.
 - Keep option count small, usually 2-5.
-- Keep 1-10 questions per set.
+- Keep 1-4 questions per set.
 - Reusing `questionSetId` is allowed only for the same normalized question payload.
 - Recommended options must match an option in the same question.
-- Render widget resource `ui://widget/questions-v4.html`.
+- Render widget resource `ui://widget/questions-v5.html`.
 - Keep widget self-contained with no remote assets and empty CSP domain lists.
 - Let the widget call `submit_answers` after the user answers all displayed questions.
 - Return `_meta["openai/widgetSessionId"]` as the `questionSetId`.
 - Let the widget persist selections and submitted answer state with `widgetState` when available.
-- Let the widget send a follow-up message with the submitted answer summary when available.
-- Use the MCP Apps bridge for tool results and widget-initiated tool calls, with `window.openai` as a ChatGPT compatibility fallback.
+- Let the widget use ChatGPT `sendFollowUpMessage` first, with initialized MCP Apps `ui/message` as fallback.
+- Use ChatGPT `window.openai` helpers first for this personal ChatGPT MVP, with the MCP Apps bridge as a small compatibility fallback.
 
 ### submit_answers
 
@@ -490,7 +490,7 @@ ChatGPT writes the final Codex-ready prompt
 - active repository selection with `--repo <path>` and current working directory fallback
 - tests for path safety and blocked files
 - tests for truncation
-- local HTTPS tunnel setup
+- local HTTPS tunnel setup, currently Tailscale Funnel first
 - manual ChatGPT Developer Mode verification
 
 ## Open Decisions

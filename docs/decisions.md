@@ -26,7 +26,7 @@ Date: 2026-06-27
 - Do not rely on GitHub for exact file-path lookup; use `read_local` when exact local paths matter.
 - Assume TS/JS and Python projects only for MVP.
 - Select the active repository with `--repo <path>`, falling back to the current working directory.
-- Use Secure MCP Tunnel as the first local connection path for ChatGPT.
+- Use Tailscale Funnel as the practical first local connection path for this personal ChatGPT setup.
 - Keep MVP app authentication simple: no OAuth/bearer token in the first personal-use version.
 - `local_diff` returns bounded patches when explicitly called; `project_snapshot` already provides changed-file metadata.
 - `project_snapshot` may include small contents for high-value instruction/manifest files under strict size limits.
@@ -34,7 +34,8 @@ Date: 2026-06-27
 ## Recommended Defaults
 
 - TypeScript/Node.js for the MCP server.
-- Secure MCP Tunnel as the first local tunnel to try.
+- Tailscale Funnel as the first local tunnel to try for personal testing.
+- Secure MCP Tunnel as an optional path when the tunnel can be associated with the target ChatGPT workspace.
 - Cloudflare Tunnel or ngrok only as fallback options.
 - GitHub tool first for committed repo context, docs, search, and citations.
 - Preflight first for local worktree status, staged/unstaged diffs, and untracked files.

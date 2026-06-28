@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-export const QUESTION_WIDGET_URI = "ui://widget/questions-v4.html";
+export const QUESTION_WIDGET_URI = "ui://widget/questions-v5.html";
 export const QUESTION_WIDGET_MIME_TYPE = "text/html;profile=mcp-app";
 
 export function createQuestionWidgetResourceMetadata() {
@@ -66,45 +66,64 @@ export function createQuestionWidgetHtml(): string {
       --separator: color-mix(in srgb, CanvasText 12%, transparent);
     }
 
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+
     body {
       margin: 0;
-      padding: 10px 12px 12px;
+      padding: 6px 8px 8px;
       background: Canvas;
       color: CanvasText;
     }
 
+    #app,
+    form {
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+
     form {
       display: grid;
-      gap: 4px;
+      gap: 0;
     }
 
     fieldset {
       border: 0;
       border-radius: 0;
-      padding: 8px 0 12px;
+      padding: 6px 0 8px;
       margin: 0;
     }
 
     fieldset + fieldset {
       border-top: 1px solid var(--separator);
-      padding-top: 16px;
+      padding-top: 10px;
     }
 
     legend {
       padding: 0;
-      margin-bottom: 6px;
-      font-size: 15px;
+      margin-bottom: 4px;
+      font-size: 14px;
       font-weight: 680;
       letter-spacing: 0;
+      overflow-wrap: anywhere;
     }
 
     .option {
       display: grid;
-      grid-template-columns: 20px 1fr;
-      gap: 10px;
+      grid-template-columns: 18px minmax(0, 1fr);
+      gap: 8px;
       align-items: center;
-      padding: 8px 10px;
-      margin: 2px -10px;
+      padding: 6px 8px;
+      margin: 1px 0;
       border-radius: 8px;
       cursor: pointer;
       transition: background-color 120ms ease, color 120ms ease;
@@ -123,34 +142,43 @@ export function createQuestionWidgetHtml(): string {
       margin-top: 1px;
     }
 
+    .option > span {
+      min-width: 0;
+    }
+
     .label-row {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: baseline;
       flex-wrap: wrap;
       font-weight: 560;
+      overflow-wrap: anywhere;
     }
 
     .recommended {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
       color: var(--muted);
     }
 
     .description {
-      margin: 2px 0 0;
-      font-size: 13px;
+      margin: 1px 0 0;
+      font-size: 12px;
       color: var(--muted);
+      overflow-wrap: anywhere;
     }
 
     .actions {
       display: flex;
-      gap: 10px;
+      gap: 8px;
       align-items: center;
       flex-wrap: wrap;
       border-top: 1px solid var(--separator);
       margin-top: 2px;
-      padding-top: 12px;
+      padding-top: 8px;
+      position: sticky;
+      bottom: 0;
+      background: Canvas;
     }
 
     button {
@@ -161,8 +189,8 @@ export function createQuestionWidgetHtml(): string {
       cursor: pointer;
       font: inherit;
       font-weight: 650;
-      padding: 8px 12px;
-      min-height: 36px;
+      padding: 6px 10px;
+      min-height: 32px;
     }
 
     button:disabled {
@@ -172,8 +200,9 @@ export function createQuestionWidgetHtml(): string {
     }
 
     #status {
-      font-size: 13px;
+      font-size: 12px;
       color: var(--muted);
+      min-width: 0;
     }
 
     #empty {
@@ -193,6 +222,7 @@ export function createQuestionWidgetHtml(): string {
     const cachedGlobals = {};
     let bridgeRequestId = 1;
     let initialPollId = null;
+    let bridgeReadyPromise = null;
     const pendingBridgeRequests = new Map();
 
     function getToolOutput() {
@@ -276,16 +306,14 @@ export function createQuestionWidgetHtml(): string {
       const storedState = getStoredWidgetState();
       return {
         questionSetId: currentData.questionSetId,
-        questions: currentData.questions,
         selections: normalizeSelections(storedState?.selections),
         submitStatus: storedState?.submitStatus || "idle",
         submittedResult: storedState?.submittedResult || null,
-        updatedAt: new Date().toISOString(),
         ...patch
       };
     }
 
-    async function persistWidgetState(patch = {}) {
+    function persistWidgetState(patch = {}) {
       if (!currentData?.questionSetId) return null;
 
       const nextState = createWidgetState(patch);
@@ -294,10 +322,7 @@ export function createQuestionWidgetHtml(): string {
 
       if (window.openai?.setWidgetState) {
         try {
-          const maybePromise = window.openai.setWidgetState(nextState);
-          if (maybePromise && typeof maybePromise.then === "function") {
-            await maybePromise;
-          }
+          window.openai.setWidgetState(nextState);
         } catch {
           // Local state is already updated; host persistence is a best-effort layer.
         }
@@ -306,8 +331,12 @@ export function createQuestionWidgetHtml(): string {
       return nextState;
     }
 
-    function persistWidgetStateSoon(patch = {}) {
-      void persistWidgetState(patch);
+    function notifyIntrinsicHeight() {
+      try {
+        window.openai?.notifyIntrinsicHeight?.();
+      } catch {
+        // Height reporting is optional; layout still works without it.
+      }
     }
 
     function extractStructuredContent(payload) {
@@ -320,7 +349,7 @@ export function createQuestionWidgetHtml(): string {
         || null;
     }
 
-    function callBridgeTool(name, args) {
+    function bridgeRequest(method, params, timeoutMessage) {
       if (!window.parent || window.parent === window) {
         return Promise.reject(new Error("MCP Apps bridge is unavailable."));
       }
@@ -329,22 +358,58 @@ export function createQuestionWidgetHtml(): string {
       const message = {
         jsonrpc: "2.0",
         id,
-        method: "tools/call",
-        params: {
-          name,
-          arguments: args
-        }
+        method,
+        params
       };
 
       return new Promise((resolve, reject) => {
         const timeout = window.setTimeout(() => {
           pendingBridgeRequests.delete(id);
-          reject(new Error("Tool call timed out."));
+          reject(new Error(timeoutMessage));
         }, 15000);
 
         pendingBridgeRequests.set(id, { resolve, reject, timeout });
         window.parent.postMessage(message, "*");
       });
+    }
+
+    function bridgeNotify(method, params) {
+      if (!window.parent || window.parent === window) {
+        throw new Error("MCP Apps bridge is unavailable.");
+      }
+
+      window.parent.postMessage({ jsonrpc: "2.0", method, params }, "*");
+    }
+
+    function ensureBridgeReady() {
+      if (bridgeReadyPromise) return bridgeReadyPromise;
+
+      bridgeReadyPromise = bridgeRequest(
+        "ui/initialize",
+        {
+          appInfo: { name: "preflight-question-widget", version: "0.1.0" },
+          appCapabilities: {},
+          protocolVersion: "2026-01-26"
+        },
+        "MCP Apps bridge initialization timed out."
+      ).then(() => {
+        bridgeNotify("ui/notifications/initialized", {});
+        return true;
+      }).catch((error) => {
+        bridgeReadyPromise = null;
+        throw error;
+      });
+
+      return bridgeReadyPromise;
+    }
+
+    async function callBridgeTool(name, args) {
+      await ensureBridgeReady();
+      return bridgeRequest(
+        "tools/call",
+        { name, arguments: args },
+        "Tool call timed out."
+      );
     }
 
     async function callTool(name, args) {
@@ -480,26 +545,28 @@ export function createQuestionWidgetHtml(): string {
       app.replaceChildren(form);
       restoreSelections();
       if (!getStoredWidgetState()) {
-        persistWidgetStateSoon({
+        persistWidgetState({
           selections: {},
           submitStatus: "idle",
           submittedResult: null
         });
       }
       updateSubmitState();
+      notifyIntrinsicHeight();
     }
 
     function applySubmittedResult(result) {
       if (!currentData || result.questionSetId !== currentData.questionSetId) return;
 
       const selections = answersToSelections(result.answers);
-      persistWidgetStateSoon({
+      persistWidgetState({
         selections,
         submitStatus: "submitted",
         submittedResult: result
       });
       restoreSelections();
       updateSubmitState();
+      notifyIntrinsicHeight();
     }
 
     function restoreSelections() {
@@ -527,7 +594,7 @@ export function createQuestionWidgetHtml(): string {
 
     function handleAnswerChange() {
       const answers = collectAnswers();
-      persistWidgetStateSoon({
+      persistWidgetState({
         selections: answersToSelections(answers),
         submitStatus: "idle",
         submittedResult: null
@@ -544,7 +611,7 @@ export function createQuestionWidgetHtml(): string {
       const submittedAnswers = storedState?.submittedResult?.answers;
       if (storedState?.submitStatus === "submitted") {
         button.disabled = true;
-        status.textContent = "Stored " + (Array.isArray(submittedAnswers) ? submittedAnswers.length : 0) + " answer(s). Continuing...";
+        status.textContent = "Stored " + (Array.isArray(submittedAnswers) ? submittedAnswers.length : 0) + " answer(s).";
         return;
       }
 
@@ -584,18 +651,50 @@ export function createQuestionWidgetHtml(): string {
       }).join("\n");
     }
 
-    async function notifyModelAfterSubmit(structuredContent, summary) {
-      if (!window.openai?.sendFollowUpMessage) return false;
+    async function notifyModelAfterSubmit(summary) {
+      const prompt = "Preflight questions have been answered. Continue from the previous task using these answers:\n" + summary;
 
-      try {
-        await window.openai.sendFollowUpMessage({
-          prompt: "Preflight questions have been answered. Continue from the previous task using these answers:\n" + summary,
-          scrollToBottom: true
-        });
-        return true;
-      } catch {
-        return false;
+      if (window.openai?.sendFollowUpMessage) {
+        try {
+          await window.openai.sendFollowUpMessage({
+            prompt,
+            scrollToBottom: true
+          });
+          return { status: "delivered" };
+        } catch {
+          // Fall back to the standard bridge path below.
+        }
       }
+
+      return sendUiMessage(prompt);
+    }
+
+    async function sendUiMessage(prompt) {
+      try {
+        await ensureBridgeReady();
+        bridgeNotify("ui/message", {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: prompt
+            }
+          ]
+        });
+        return { status: "requested" };
+      } catch {
+        return { status: "unavailable" };
+      }
+    }
+
+    function submittedStatusText(answerCount, continuationResult) {
+      if (continuationResult.status === "delivered") {
+        return "Stored " + answerCount + " answer(s). Continuing...";
+      }
+      if (continuationResult.status === "requested") {
+        return "Stored " + answerCount + " answer(s). Continuation requested.";
+      }
+      return "Stored " + answerCount + " answer(s), but ChatGPT did not receive an automatic continuation message.";
     }
 
     function stopInitialPolling() {
@@ -632,7 +731,7 @@ export function createQuestionWidgetHtml(): string {
       try {
         if (button) button.disabled = true;
         if (status) status.textContent = "Submitting...";
-        await persistWidgetState({
+        persistWidgetState({
           selections,
           submitStatus: "submitting",
           submittedResult: null
@@ -646,20 +745,19 @@ export function createQuestionWidgetHtml(): string {
         const structuredContent = extractStructuredContent(result) || result || {};
         const storedAnswers = structuredContent.answers || answers;
         const summary = formatSubmittedAnswers(structuredContent, storedAnswers);
-        await persistWidgetState({
+        persistWidgetState({
           selections: answersToSelections(storedAnswers),
           submitStatus: "submitted",
           submittedResult: structuredContent
         });
-        const notified = await notifyModelAfterSubmit(structuredContent, summary);
+        const continuationResult = await notifyModelAfterSubmit(summary);
         if (status) {
-          status.textContent = notified
-            ? "Stored " + storedAnswers.length + " answer(s). Continuing..."
-            : "Stored " + storedAnswers.length + " answer(s).";
+          status.textContent = submittedStatusText(storedAnswers.length, continuationResult);
         }
         if (button) button.disabled = true;
+        notifyIntrinsicHeight();
       } catch (error) {
-        await persistWidgetState({
+        persistWidgetState({
           selections,
           submitStatus: "idle",
           submittedResult: null

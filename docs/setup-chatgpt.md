@@ -1,43 +1,37 @@
 # ChatGPT Setup Runbook
 
-This project targets ChatGPT Developer Mode with a private local MCP server exposed through Secure MCP Tunnel.
+This project targets ChatGPT Developer Mode with a private local MCP server exposed over a temporary public HTTPS endpoint.
 
-Secure MCP Tunnel is the default development path. Use Cloudflare Tunnel, ngrok, or a self-hosted HTTPS endpoint only as fallbacks.
+For this personal setup, the practical default is Tailscale Funnel. Secure MCP Tunnel remains documented as an optional path for accounts or workspaces where OpenAI tunnel association works cleanly.
 
 ## Prerequisites
 
 - Node.js 20 or newer.
 - This repository installed locally.
-- A ChatGPT account/workspace where Developer Mode is allowed. Current OpenAI help docs say full MCP apps are available on Business, Enterprise, and Edu; Pro accounts can connect read/fetch MCPs in developer mode. Personal accounts below that may show UI entry points but fail during creation.
-- Access to an OpenAI Platform organization with tunnel permissions.
-- `tunnel-client` from Platform tunnel settings or the latest `openai/tunnel-client` release.
-- A runtime API key for `tunnel-client`.
+- A ChatGPT account where Developer Mode and custom MCP apps/connectors are available.
+- Tailscale installed and signed in on this machine.
+- Tailscale Funnel enabled for the machine or tailnet.
 
-Developer Mode and tunnel permissions are separate:
-
-- ChatGPT Developer Mode is enabled in ChatGPT workspace/account settings.
-- Tunnel creation/editing requires Platform Tunnels Read + Manage.
-- Running or selecting a tunnel requires Platform Tunnels Read + Use.
-- The tunnel should be associated with the ChatGPT workspace where you want to create the connector. For personal accounts, the workspace selector may be empty; in that case, use the personal Platform organization and paste the `tunnel_id` manually in ChatGPT if the tunnel is not listed.
+The Preflight MCP server stays read-only, blocks secret-like files, and bounds all tool output. Do not use this setup for shared or sensitive repositories unless you add stronger authentication and operational controls.
 
 ## Local Verification
 
-Install dependencies and verify the local MCP server before using a tunnel:
+Install dependencies and verify the local MCP server before exposing it:
 
-```bash
+```powershell
 npm install
 npm run smoke
 ```
 
-`npm run smoke` builds the project, starts the MCP server on a temporary local port, verifies tool and widget registration through the MCP HTTP transport, calls `project_snapshot`, and shuts the server down.
+`npm run smoke` builds the project, starts the MCP server on a temporary local port, verifies tool and widget registration through the real MCP HTTP transport, calls `project_snapshot`, and shuts the server down.
 
 ## Start Preflight Locally
 
 Start Preflight for the repository ChatGPT should discuss:
 
-```bash
+```powershell
 npm run build
-npm start -- --repo C:\path\to\repo
+npm start -- --repo C:\path\to\repo --port 3327
 ```
 
 The local MCP endpoint is:
@@ -46,93 +40,44 @@ The local MCP endpoint is:
 http://localhost:3327/mcp
 ```
 
-Keep this terminal running while ChatGPT uses the connector.
+Keep this terminal running while ChatGPT uses Preflight.
 
-## Configure Secure MCP Tunnel
+## Expose With Tailscale Funnel
 
-Create or manage the tunnel in Platform tunnel settings:
+In a second terminal, expose local port `3327`:
+
+```powershell
+tailscale funnel --bg --yes 3327
+```
+
+Check the public HTTPS URL:
+
+```powershell
+tailscale funnel status --json
+```
+
+Use the HTTPS URL reported by Tailscale with `/mcp` appended:
 
 ```text
-https://platform.openai.com/settings/organization/tunnels
+https://<machine>.<tailnet>.ts.net/mcp
 ```
 
-Download `tunnel-client` from that page, or use the latest public release:
-
-```text
-https://github.com/openai/tunnel-client/releases/latest
-```
-
-In a second terminal, set the runtime API key.
-
-PowerShell:
+Tailscale Funnel is public internet exposure. Keep Preflight read-only, keep secret blocking enabled, use it only while testing or working, and turn it off when finished:
 
 ```powershell
-$env:CONTROL_PLANE_API_KEY = "sk-..."
-```
-
-Bash:
-
-```bash
-export CONTROL_PLANE_API_KEY="sk-..."
-```
-
-Initialize a profile for the local HTTP MCP endpoint. Replace the tunnel ID with the value from Platform tunnel settings.
-
-PowerShell:
-
-```powershell
-.\tunnel-client.exe init `
-  --sample sample_mcp_remote_no_auth `
-  --profile preflight-local `
-  --tunnel-id tunnel_0123456789abcdef0123456789abcdef `
-  --mcp-server-url "http://localhost:3327/mcp"
-```
-
-Bash:
-
-```bash
-tunnel-client init \
-  --sample sample_mcp_remote_no_auth \
-  --profile preflight-local \
-  --tunnel-id tunnel_0123456789abcdef0123456789abcdef \
-  --mcp-server-url "http://localhost:3327/mcp"
-```
-
-Validate the profile:
-
-```bash
-tunnel-client doctor --profile preflight-local --explain
-```
-
-For this no-auth MVP, `doctor` may report `oauth_metadata` as failed because Preflight intentionally does not expose OAuth metadata. That is acceptable if `mcp_server_reachable` passes.
-
-Run the tunnel:
-
-```bash
-tunnel-client run --profile preflight-local
-```
-
-Keep `tunnel-client run` healthy while creating or testing the ChatGPT connector. Tool discovery and MCP calls depend on both terminals staying active:
-
-- `npm start -- --repo C:\path\to\repo`
-- `tunnel-client run --profile preflight-local`
-
-After `tunnel-client run` starts, the runtime readiness check should return `ready`:
-
-```powershell
-Invoke-WebRequest http://127.0.0.1:8080/readyz -UseBasicParsing
+tailscale funnel --https=443 off
 ```
 
 ## Connect In ChatGPT Developer Mode
 
 1. In ChatGPT, enable Developer Mode:
    - `Settings -> Apps & Connectors -> Advanced settings`
-2. Go to connector creation:
+2. Go to app/connector creation:
    - `Settings -> Apps & Connectors -> Create`
    - Some ChatGPT UI versions show the same flow under `Settings -> Connectors -> Create`.
-3. For Connection, choose `Tunnel`.
-4. Select the tunnel from the list, or paste the `tunnel_id`.
-5. Use connector name:
+3. For Connection, choose `Server URL`.
+4. Paste the Tailscale HTTPS MCP URL, including `/mcp`.
+5. Use app/connector name:
    - `Preflight`
 6. Use a description like:
 
@@ -140,7 +85,7 @@ Invoke-WebRequest http://127.0.0.1:8080/readyz -UseBasicParsing
    Provides read-only local repository context, local diffs, selected local file reads, and alignment questions for coding-project discussions.
    ```
 
-7. Create the connector.
+7. Create the app/connector.
 8. Verify ChatGPT shows these tools:
    - `project_snapshot`
    - `local_diff`
@@ -148,45 +93,31 @@ Invoke-WebRequest http://127.0.0.1:8080/readyz -UseBasicParsing
    - `show_questions`
    - `submit_answers`
 
-After changing tool names, descriptions, schemas, widget metadata, or resource metadata, open the connector in ChatGPT settings and choose `Refresh`. Start a new chat after refreshing.
-
 Do not use Platform `ChatGPT Apps -> New App` for this local Developer Mode flow. That page is for creating or publishing app records in Platform; this project should be connected from ChatGPT settings.
 
-## Tailscale Funnel Fallback
+## Refreshing ChatGPT Metadata
 
-Use Tailscale Funnel when Secure MCP Tunnel cannot be associated with the target ChatGPT account/workspace, or when you need to test the public HTTPS Server URL path.
+ChatGPT can cache tool and widget metadata. After changing tool names, descriptions, schemas, widget metadata, or the widget URI:
 
-Preflight must already be running on `http://localhost:3327/mcp`. Then run:
+1. Run `npm run build`.
+2. Restart `npm start -- --repo C:\path\to\repo --port 3327`.
+3. Confirm Tailscale Funnel is still exposing the server.
+4. Open the Preflight app/connector in ChatGPT settings and choose `Refresh` or refresh metadata.
+5. Start a new ChatGPT chat and re-add Preflight from the composer.
 
-```powershell
-tailscale funnel --bg --yes 3327
-```
-
-Check the public URL:
-
-```powershell
-tailscale funnel status --json
-```
-
-Use the HTTPS URL reported by `tailscale funnel status`, with `/mcp` at the end:
+The current question widget resource is:
 
 ```text
-https://<machine>.<tailnet>.ts.net/mcp
+ui://widget/questions-v5.html
 ```
 
-To disable the public proxy:
-
-```powershell
-tailscale funnel --https=443 off
-```
-
-Tailscale Funnel is public internet exposure. Keep Preflight read-only, keep secret blocking enabled, and turn Funnel off when not testing.
+If ChatGPT reports `Failed to fetch template`, it is usually using stale widget metadata. Refresh metadata and start a new chat rather than adding old widget URI aliases back to the server.
 
 ## Manual Verification Checklist
 
-Use a new ChatGPT chat after creating or refreshing the connector.
+Use a new ChatGPT chat after creating or refreshing Preflight.
 
-1. Add the `Preflight` connector from the composer.
+1. Add `Preflight` from the composer.
 2. Ask ChatGPT to call `project_snapshot` and summarize the active local repository.
 3. If the repository has tracked local changes, ask ChatGPT to call `local_diff` with `scope: "all"`.
 4. Ask ChatGPT to call `read_local` for one safe exact path such as `README.md` or `AGENTS.md`.
@@ -199,56 +130,95 @@ Use a new ChatGPT chat after creating or refreshing the connector.
 
 ## Expected Failures And Fixes
 
-Tunnel not visible in ChatGPT:
+Local endpoint unreachable:
 
-- Check that the tunnel is associated with the target ChatGPT workspace, not only a Platform organization.
-- For personal accounts where no workspace is available in Platform tunnel settings, paste the `tunnel_id` manually in ChatGPT's Tunnel connection field.
-- Check that the connector operator has Platform Tunnels Read + Use.
-- Check ChatGPT workspace/admin settings if Developer Mode is missing.
+- Confirm the Preflight terminal says it is listening on `http://localhost:3327/mcp`.
+- A plain browser GET may not show a useful page because `/mcp` expects MCP requests.
+- Run `npm run smoke` to verify local MCP wiring.
 
-Connector creation fails:
+Tailscale URL does not work:
 
-- Confirm Preflight is still running on `http://localhost:3327/mcp`.
-- Confirm `tunnel-client run --profile preflight-local` is still running.
-- If tunnel-client logs do not show any new request when you click Create, the failure happened before ChatGPT reached the local MCP server. Check plan eligibility, Developer Mode access, and tunnel workspace/organization association.
-- Run `tunnel-client doctor --profile preflight-local --explain`.
+- Confirm Funnel is enabled with `tailscale funnel status --json`.
+- Confirm the public URL includes `/mcp`.
+- Restart Funnel after restarting or changing local ports.
+- Check local firewall or Tailscale policy if requests never reach the server.
 
 Tool discovery fails:
 
 - Run `npm run smoke`.
-- Run `tunnel-client doctor --profile preflight-local --explain`.
-- If only `oauth_metadata` fails, keep `tunnel-client run --profile preflight-local` running and verify `http://127.0.0.1:8080/readyz` returns `ready`.
-- Refresh the connector metadata in ChatGPT settings.
+- Restart Preflight and confirm Tailscale still points to port `3327`.
+- Refresh ChatGPT app/connector metadata and start a new chat.
 
 Widget does not render or update:
 
-- Refresh connector metadata in ChatGPT.
+- Refresh metadata in ChatGPT settings.
 - Start a new chat.
-- Confirm `show_questions` returns structured content and references the question widget.
-
-Local endpoint unreachable:
-
-- Confirm the Preflight terminal says it is listening on `http://localhost:3327/mcp`.
-- Try `http://127.0.0.1:3327/mcp` in tunnel-client profile setup if Windows localhost resolution behaves oddly.
-- A plain browser GET may not show a useful page because `/mcp` expects MCP requests.
+- Confirm `show_questions` advertises `ui://widget/questions-v5.html`.
+- If the error says `Failed to fetch template`, assume stale metadata first.
 
 Permission or policy issue:
 
 - Check ChatGPT Developer Mode access under workspace/account settings.
-- Check Platform tunnel permissions under the organization that owns the tunnel.
-- Ask a workspace or Platform admin to grant the missing permission.
+- Try recreating the app/connector with the Server URL path.
+- If Server URL apps are unavailable for the account, use Secure MCP Tunnel only if the tunnel can be associated with a usable ChatGPT workspace.
+
+## Optional: Secure MCP Tunnel
+
+Use Secure MCP Tunnel only when your OpenAI Platform organization and ChatGPT workspace can be associated with the tunnel and ChatGPT shows the tunnel during app/connector creation.
+
+Additional prerequisites:
+
+- Access to OpenAI Platform tunnel settings.
+- `tunnel-client` from Platform tunnel settings or the latest `openai/tunnel-client` release.
+- A runtime API key for `tunnel-client`.
+- Platform Tunnels Read + Use permission for running/selecting a tunnel.
+- Platform Tunnels Read + Manage permission for creating/editing a tunnel.
+
+Tunnel settings:
+
+```text
+https://platform.openai.com/settings/organization/tunnels
+```
+
+Set the runtime API key in the terminal running `tunnel-client`:
+
+```powershell
+$env:CONTROL_PLANE_API_KEY = "sk-..."
+```
+
+Initialize a profile for the local HTTP MCP endpoint. Replace the tunnel ID with the value from Platform tunnel settings:
+
+```powershell
+.\tunnel-client.exe init `
+  --sample sample_mcp_remote_no_auth `
+  --profile preflight-local `
+  --tunnel-id tunnel_0123456789abcdef0123456789abcdef `
+  --mcp-server-url "http://localhost:3327/mcp"
+```
+
+Validate and run:
+
+```powershell
+.\tunnel-client.exe doctor --profile preflight-local --explain
+.\tunnel-client.exe run --profile preflight-local
+```
+
+For this no-auth MVP, `doctor` may report `oauth_metadata` as failed because Preflight intentionally does not expose OAuth metadata. That is acceptable if the MCP server reachability check passes.
+
+In ChatGPT app/connector creation, choose `Tunnel` instead of `Server URL`, then select the tunnel or paste the `tunnel_id`.
 
 ## Authentication
 
 MVP stays simple for personal use: no OAuth or bearer token on the Preflight MCP server.
 
-This is acceptable only with strict read-only tools, secret blocking, bounded output, and the default Secure MCP Tunnel development path. Revisit authentication before sharing the app, using a public tunnel for regular work, or exposing repositories that should not be reachable by anyone with the tunnel URL.
+This is acceptable only with strict read-only tools, secret blocking, bounded output, and short-lived personal testing exposure. Revisit authentication before sharing the app, using a public tunnel for regular work, or exposing repositories that should not be reachable by anyone with the public URL.
 
 OpenAI's Apps SDK auth guidance says read-only anonymous apps can be acceptable, but customer-specific data or write actions should authenticate users. This MVP is intentionally personal, read-only, and tunnel-first; do not generalize that choice to a shared or published app.
 
 ## Reference Docs
 
-- https://developers.openai.com/api/docs/guides/secure-mcp-tunnels
 - https://developers.openai.com/apps-sdk/deploy/connect-chatgpt
+- https://developers.openai.com/apps-sdk/reference
 - https://developers.openai.com/apps-sdk/build/auth
-- https://help.openai.com/en/articles/11145903-connecting-github-to-chatgpt
+- https://developers.openai.com/api/docs/guides/secure-mcp-tunnels
+- https://tailscale.com/kb/1223/funnel

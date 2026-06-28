@@ -45,7 +45,7 @@ When implementation starts, prefer:
 - schema validation for every tool input
 - `git` CLI wrappers for local git state
 - `--repo <path>` for active repository selection, with current working directory fallback
-- Secure MCP Tunnel for first ChatGPT integration testing
+- Tailscale Funnel for personal ChatGPT integration testing, with Secure MCP Tunnel as an optional path when workspace association works
 - in-memory preflight sessions for MVP
 
 ## Documentation Map

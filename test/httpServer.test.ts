@@ -78,3 +78,53 @@ test("question tools return a stable widget session id", async () => {
     await started.close();
   }
 });
+
+test("question tool schemas limit question sets and answer batches to four", async () => {
+  const started = await startMcpHttpServer(() => createPreflightMcpServer({ repoPath: process.cwd() }), 0);
+  const client = new Client({ name: "preflight-question-limit-test", version: "0.1.0" });
+
+  try {
+    const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${started.port}/mcp`));
+    await client.connect(transport);
+
+    const tools = await client.listTools();
+    const showQuestions = tools.tools.find((tool) => tool.name === "show_questions");
+    const submitAnswers = tools.tools.find((tool) => tool.name === "submit_answers");
+    const showInputSchema = showQuestions?.inputSchema as { properties?: Record<string, { maxItems?: number }> };
+    const submitInputSchema = submitAnswers?.inputSchema as { properties?: Record<string, { maxItems?: number }> };
+
+    assert.equal(showInputSchema.properties?.questions?.maxItems, 4);
+    assert.equal(submitInputSchema.properties?.answers?.maxItems, 4);
+
+    const tooManyQuestions = await client.callTool({
+      name: "show_questions",
+      arguments: {
+        questionSetId: "too-many",
+        questions: Array.from({ length: 5 }, (_, index) => ({
+          id: `q${index}`,
+          question: `Question ${index}?`,
+          mode: "single",
+          options: [
+            { id: "a", label: "A", description: "" },
+            { id: "b", label: "B", description: "" }
+          ]
+        }))
+      }
+    });
+
+    assert.equal(tooManyQuestions.isError, true);
+
+    const tooManyAnswers = await client.callTool({
+      name: "submit_answers",
+      arguments: {
+        questionSetId: "too-many",
+        answers: Array.from({ length: 5 }, (_, index) => ({ questionId: `q${index}`, optionIds: ["a"] }))
+      }
+    });
+
+    assert.equal(tooManyAnswers.isError, true);
+  } finally {
+    await client.close().catch(() => undefined);
+    await started.close();
+  }
+});

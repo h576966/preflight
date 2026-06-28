@@ -5,7 +5,7 @@ import { DEFAULT_LIMITS } from "./constants.js";
 import { createLocalDiff } from "./localDiff.js";
 import { createProjectSnapshot } from "./projectSnapshot.js";
 import { QUESTION_WIDGET_URI, registerQuestionWidget } from "./questionWidget.js";
-import { formatAnswerSetForText, formatQuestionSetForText, QuestionStore } from "./questions.js";
+import { formatAnswerSetForText, formatQuestionSetForText, MAX_QUESTIONS_PER_SET, QuestionStore } from "./questions.js";
 import { createReadLocal } from "./readLocal.js";
 
 export type PreflightServerOptions = {
@@ -193,7 +193,7 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
       ].join(" "),
       inputSchema: {
         questionSetId: z.string(),
-        questions: z.array(questionInputSchema).min(1).max(10)
+        questions: z.array(questionInputSchema).min(1).max(MAX_QUESTIONS_PER_SET)
       },
       outputSchema: {
         questionSetId: z.string(),
@@ -242,7 +242,7 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
       ].join(" "),
       inputSchema: {
         questionSetId: z.string(),
-        answers: z.array(answerSchema).min(1).max(10)
+        answers: z.array(answerSchema).min(1).max(MAX_QUESTIONS_PER_SET)
       },
       outputSchema: {
         questionSetId: z.string(),

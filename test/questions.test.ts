@@ -45,6 +45,17 @@ test("QuestionStore stores and returns a valid question set", () => {
   assert.equal(result.questions[1]?.recommendedOptionId, null);
 });
 
+test("QuestionStore accepts four questions", () => {
+  const questions = Array.from({ length: 4 }, (_, index) => ({
+    ...sampleQuestions()[0]!,
+    id: `q${index}`
+  }));
+
+  const result = new QuestionStore().showQuestions({ questionSetId: "qs1", questions });
+
+  assert.equal(result.questions.length, 4);
+});
+
 test("QuestionStore allows identical question set replay", () => {
   const store = new QuestionStore();
   const input = { questionSetId: "qs1", questions: sampleQuestions() };
@@ -141,18 +152,18 @@ test("QuestionStore rejects non-string option descriptions", () => {
 test("QuestionStore rejects invalid question set sizes", () => {
   assert.throws(
     () => new QuestionStore().showQuestions({ questionSetId: "qs1", questions: [] }),
-    /between 1 and 10 questions/
+    /between 1 and 4 questions/
   );
 
   assert.throws(
     () => new QuestionStore().showQuestions({
       questionSetId: "qs1",
-      questions: Array.from({ length: 11 }, (_, index) => ({
+      questions: Array.from({ length: 5 }, (_, index) => ({
         ...sampleQuestions()[0]!,
         id: `q${index}`
       }))
     }),
-    /between 1 and 10 questions/
+    /between 1 and 4 questions/
   );
 });
 

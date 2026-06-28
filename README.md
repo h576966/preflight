@@ -30,3 +30,5 @@ The initial server exposes a local MCP endpoint at `http://localhost:3327/mcp`, 
 - `read_local`
 - `show_questions`
 - `submit_answers`
+
+For ChatGPT Developer Mode setup, use [docs/setup-chatgpt.md](docs/setup-chatgpt.md). The current personal setup path is local Preflight on port `3327` exposed with Tailscale Funnel.

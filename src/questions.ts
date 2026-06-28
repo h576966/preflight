@@ -16,6 +16,8 @@ type StoredQuestionSet = {
   answers: Map<string, string[]>;
 };
 
+export const MAX_QUESTIONS_PER_SET = 4;
+
 export class QuestionStore {
   private readonly questionSets = new Map<string, StoredQuestionSet>();
 
@@ -110,8 +112,8 @@ export function formatAnswerSetForText(result: SubmitAnswersResult): string {
 }
 
 function normalizeQuestions(questions: ShowQuestionsInput["questions"]): Question[] {
-  if (!Array.isArray(questions) || questions.length < 1 || questions.length > 10) {
-    throw new Error("questions must contain between 1 and 10 questions");
+  if (!Array.isArray(questions) || questions.length < 1 || questions.length > MAX_QUESTIONS_PER_SET) {
+    throw new Error(`questions must contain between 1 and ${MAX_QUESTIONS_PER_SET} questions`);
   }
 
   const questionIds = new Set<string>();
