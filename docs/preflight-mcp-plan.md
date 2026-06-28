@@ -80,9 +80,9 @@ Preflight should expose GitHub identity hints, but it should not call the GitHub
 - Use Tailscale Funnel as the practical default ChatGPT connection path for this personal setup.
 - Keep MVP app authentication simple: no OAuth/bearer token in the first personal-use version.
 - Use an 80/20 local-read model: changed files, untracked files, instruction files, and a small allowlist of high-value non-secret TS/JS/Python project files.
-- In-memory session state only.
-- ChatGPT writes conclusions, recommendations, and Codex prompts.
-- The early UI focuses on multiple-choice questions.
+- In-memory question state for one Preflight server run; it is shared across MCP HTTP sessions but lost on restart.
+- ChatGPT writes conclusions and recommendations, and writes Codex prompts only when they are requested or clearly the most useful final artifact.
+- The early UI focuses on multiple-choice questions as a selective reliability aid, not a required workflow step.
 - Prompt preview stays in normal ChatGPT chat for MVP.
 - Treat `AGENTS.md` and README guidance as strong recommendations, not hidden hard policy.
 - Assume the ChatGPT GitHub tool can provide committed repository code, README/docs, search, analysis, and citations.
@@ -267,7 +267,7 @@ Lockfiles are not in the default allowlist. They can be read only when locally c
 
 Purpose: render multiple-choice questions created by ChatGPT.
 
-Phase 2B behavior: validate and store the question set, return structured question data with `rendered: true`, and render the minimal ChatGPT App question widget. After `show_questions`, ChatGPT should wait for `submit_answers` or the widget follow-up before continuing with recommendations or analysis.
+Phase 2B behavior: validate and store the question set, return structured question data with `rendered: true`, and render the minimal ChatGPT App question widget. ChatGPT should use `show_questions` proactively when user input would materially improve reliability because tradeoffs, preferences, scope, or expected output are unclear. It should not use questions as a default step when a direct answer is sufficient. After `show_questions`, ChatGPT should wait for `submit_answers` or the widget follow-up before continuing with recommendations or analysis.
 
 Inputs:
 
@@ -319,7 +319,9 @@ Returns:
 Implementation notes:
 
 - The server validates and renders questions.
-- ChatGPT decides which questions to ask.
+- ChatGPT decides whether questions are useful and which questions to ask.
+- The user should not need to explicitly ask for questions when alignment input would materially improve reliability.
+- Skip questions when the answer is clear or the task is narrow enough for a direct response.
 - Keep option count small, usually 2-5.
 - Keep 1-4 questions per set.
 - Reusing `questionSetId` is allowed only for the same normalized question payload.
@@ -327,6 +329,7 @@ Implementation notes:
 - Render widget resource `ui://widget/questions-v5.html`.
 - Keep widget self-contained with no remote assets and empty CSP domain lists.
 - Let the widget call `submit_answers` after the user answers all displayed questions.
+- Store question sets in a shared in-memory store for the running Preflight process so widget calls and assistant calls can use different MCP HTTP sessions.
 - Return `_meta["openai/widgetSessionId"]` as the `questionSetId`.
 - Let the widget persist selections and submitted answer state with `widgetState` when available.
 - Let the widget use ChatGPT `sendFollowUpMessage` first, with initialized MCP Apps `ui/message` as fallback.
@@ -334,7 +337,7 @@ Implementation notes:
 
 ### submit_answers
 
-Purpose: store user choices for the current in-memory session.
+Purpose: store user choices for the current Preflight server run.
 
 Inputs:
 
@@ -381,6 +384,7 @@ Returns:
 Implementation notes:
 
 - Reject unknown question sets, question IDs, and option IDs.
+- Unknown question set diagnostics include known question set IDs and likely causes.
 - Reject duplicate submitted question IDs and duplicate option IDs.
 - Require exactly one option for `single` questions.
 - Require one or more options for `multi` questions.
@@ -460,11 +464,11 @@ For Codex prompt improvement:
 
 ```text
 project_snapshot()
-local_diff(scope: "all")
+local_diff(scope: "all") only if local changes matter
 GitHub tool: committed context around affected files if it can find relevant snippets
-show_questions(...) when alignment is unclear
+show_questions(...) only when alignment input would materially improve reliability
 submit_answers(...)
-ChatGPT writes the final Codex-ready prompt
+ChatGPT writes a Codex-ready prompt only when requested, when the user asks for Codex-suitable implementation steps, or when a prompt is clearly the most useful final artifact
 ```
 
 ## Implementation Phases
@@ -495,4 +499,4 @@ ChatGPT writes the final Codex-ready prompt
 
 ## Open Decisions
 
-- Preferred final prompt format for Codex in the VS Code extension.
+- Preferred final prompt format for Codex in the VS Code extension, when a Codex-ready prompt is the requested or clearly useful output.

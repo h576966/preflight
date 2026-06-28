@@ -13,6 +13,10 @@ The project should complement ChatGPT's GitHub tool:
 
 ChatGPT is the reasoning layer. The MCP server should provide local facts and UI plumbing, not its own analysis engine.
 
+Use alignment questions naturally when user input would materially improve reliability because tradeoffs, preferences, scope, or expected output are unclear. Do not make questions a default workflow step when a direct answer is sufficient.
+
+Codex-ready prompts are optional outputs. Produce them when the user asks for one, asks for next implementation steps suitable for Codex, or when a prompt is clearly the most useful final artifact.
+
 ## Working Style
 
 - Be concise.

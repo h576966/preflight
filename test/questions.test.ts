@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { QuestionStore } from "../src/questions.js";
+import { QuestionStore, UnknownQuestionSetError } from "../src/questions.js";
 import type { ShowQuestionsInput } from "../src/types.js";
 
 function sampleQuestions(): ShowQuestionsInput["questions"] {
@@ -288,6 +288,25 @@ test("QuestionStore rejects unknown question sets, questions, and options", () =
     }),
     /Unknown option id/
   );
+});
+
+test("QuestionStore unknown question set error includes useful diagnostics", () => {
+  const store = storeWithQuestions();
+
+  try {
+    store.submitAnswers({
+      questionSetId: "missing",
+      answers: [{ questionId: "scope", optionIds: ["simple"] }]
+    });
+    assert.fail("Expected submitAnswers to reject an unknown question set.");
+  } catch (error) {
+    assert.ok(error instanceof UnknownQuestionSetError);
+    assert.equal(error.diagnostic.error, "unknown_question_set");
+    assert.equal(error.diagnostic.questionSetId, "missing");
+    assert.deepEqual(error.diagnostic.knownQuestionSetIds, ["qs1"]);
+    assert.match(error.diagnostic.likelyCause, /different MCP\/HTTP session/);
+    assert.match(error.message, /Known questionSetIds: qs1/);
+  }
 });
 
 test("QuestionStore rejects duplicate submitted question and option IDs", () => {

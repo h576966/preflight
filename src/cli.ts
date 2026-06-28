@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import { parseCliArgs } from "./cliArgs.js";
-import { createPreflightMcpServer } from "./mcpServer.js";
+import { createPreflightMcpServerFactory } from "./mcpServer.js";
 import { startMcpHttpServer } from "./httpServer.js";
 
 async function main(): Promise<void> {
   const options = parseCliArgs(process.argv.slice(2));
   const started = await startMcpHttpServer(
-    () => createPreflightMcpServer({ repoPath: options.repoPath }),
+    createPreflightMcpServerFactory({ repoPath: options.repoPath }),
     options.port
   );
 

@@ -5,10 +5,21 @@ import { DEFAULT_LIMITS } from "./constants.js";
 import { createLocalDiff } from "./localDiff.js";
 import { createProjectSnapshot } from "./projectSnapshot.js";
 import { QUESTION_WIDGET_URI, registerQuestionWidget } from "./questionWidget.js";
-import { formatAnswerSetForText, formatQuestionSetForText, MAX_QUESTIONS_PER_SET, QuestionStore } from "./questions.js";
+import {
+  formatAnswerSetForText,
+  formatQuestionSetForText,
+  MAX_QUESTIONS_PER_SET,
+  QuestionStore,
+  UnknownQuestionSetError
+} from "./questions.js";
 import { createReadLocal } from "./readLocal.js";
 
 export type PreflightServerOptions = {
+  repoPath: string;
+  questionStore?: QuestionStore;
+};
+
+export type PreflightServerFactoryOptions = {
   repoPath: string;
 };
 
@@ -47,7 +58,7 @@ const answeredQuestionSchema = z.object({
 });
 
 export function createPreflightMcpServer(options: PreflightServerOptions): McpServer {
-  const questionStore = new QuestionStore();
+  const questionStore = options.questionStore ?? new QuestionStore();
   const server = new McpServer(
     {
       name: "preflight",
@@ -59,8 +70,10 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
         "Use project_snapshot for local worktree facts that ChatGPT's GitHub tool cannot see.",
         "Use local_diff for bounded tracked-file patches when local changes matter.",
         "Use read_local for bounded local-only or exact-path file reads.",
-        "Use show_questions and submit_answers to keep alignment choices explicit in chat.",
-        "After calling show_questions, wait for submit_answers or a Preflight widget follow-up before making recommendations.",
+        "Use show_questions proactively when user input would materially improve reliability because tradeoffs, preferences, scope, or expected output are unclear.",
+        "Do not use show_questions as a default step when a direct answer is sufficient.",
+        "After calling show_questions, wait for submit_answers or a Preflight widget follow-up before continuing.",
+        "Produce Codex-ready prompts only when requested, when the user asks for Codex-suitable implementation steps, or when a prompt is clearly the most useful final artifact.",
         "Prefer GitHub for committed remote code/docs; use Preflight for local state, diffs, and exact local paths."
       ].join(" ")
     }
@@ -187,7 +200,9 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
     {
       title: "Show Questions",
       description: [
-        "Use this when you need to ask the user concise single-choice or multi-choice alignment questions.",
+        "Use this when concise single-choice or multi-choice alignment questions would materially improve reliability.",
+        "Use it proactively for meaningful tradeoffs, missing preferences, unclear scope, or risk of producing the wrong output; the user does not need to explicitly ask for questions.",
+        "Do not use it as a default workflow step when the answer is clear or a direct answer is sufficient.",
         "Stores the question set and renders the question widget.",
         "After calling it, wait for submitted answers before continuing with recommendations or analysis."
       ].join(" "),
@@ -238,7 +253,7 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
       title: "Submit Answers",
       description: [
         "Use this when the user has selected answers for a previously shown question set.",
-        "Stores answers in memory for the current server session and returns the current compact answer set."
+        "Stores answers in memory for the current Preflight server run and returns the current compact answer set."
       ].join(" "),
       inputSchema: {
         questionSetId: z.string(),
@@ -262,7 +277,28 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
       }
     },
     async (args): Promise<CallToolResult> => {
-      const result = questionStore.submitAnswers(args);
+      let result;
+      try {
+        result = questionStore.submitAnswers(args);
+      } catch (error) {
+        if (error instanceof UnknownQuestionSetError) {
+          return {
+            isError: true,
+            structuredContent: error.diagnostic,
+            _meta: {
+              "openai/widgetSessionId": args.questionSetId
+            },
+            content: [
+              {
+                type: "text",
+                text: error.message
+              }
+            ]
+          };
+        }
+
+        throw error;
+      }
 
       return {
         structuredContent: result,
@@ -280,4 +316,9 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
   );
 
   return server;
+}
+
+export function createPreflightMcpServerFactory(options: PreflightServerFactoryOptions): () => McpServer {
+  const questionStore = new QuestionStore();
+  return () => createPreflightMcpServer({ ...options, questionStore });
 }

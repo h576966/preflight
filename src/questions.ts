@@ -17,6 +17,28 @@ type StoredQuestionSet = {
 };
 
 export const MAX_QUESTIONS_PER_SET = 4;
+const UNKNOWN_QUESTION_SET_LIKELY_CAUSE = [
+  "show_questions was not called in this Preflight server run",
+  "show_questions ran in a different MCP/HTTP session with an unshared question store",
+  "or the Preflight server restarted and lost in-memory question state"
+].join(", ");
+
+export type UnknownQuestionSetDiagnostic = {
+  error: "unknown_question_set";
+  questionSetId: string;
+  knownQuestionSetIds: string[];
+  likelyCause: string;
+};
+
+export class UnknownQuestionSetError extends Error {
+  readonly diagnostic: UnknownQuestionSetDiagnostic;
+
+  constructor(diagnostic: UnknownQuestionSetDiagnostic) {
+    super(formatUnknownQuestionSetDiagnostic(diagnostic));
+    this.name = "UnknownQuestionSetError";
+    this.diagnostic = diagnostic;
+  }
+}
 
 export class QuestionStore {
   private readonly questionSets = new Map<string, StoredQuestionSet>();
@@ -55,7 +77,7 @@ export class QuestionStore {
     const questionSetId = requireNonEmptyString(input.questionSetId, "questionSetId");
     const questionSet = this.questionSets.get(questionSetId);
     if (!questionSet) {
-      throw new Error(`Unknown question set: ${questionSetId}`);
+      throw new UnknownQuestionSetError(createUnknownQuestionSetDiagnostic(questionSetId, this.listQuestionSetIds()));
     }
 
     if (!Array.isArray(input.answers) || input.answers.length === 0) {
@@ -91,6 +113,10 @@ export class QuestionStore {
       answeredQuestions: orderedAnsweredQuestions(questionSet)
     };
   }
+
+  listQuestionSetIds(): string[] {
+    return Array.from(this.questionSets.keys()).sort();
+  }
 }
 
 export function formatQuestionSetForText(result: ShowQuestionsResult): string {
@@ -109,6 +135,29 @@ export function formatAnswerSetForText(result: SubmitAnswersResult): string {
   }
 
   return lines.join("\n");
+}
+
+export function formatUnknownQuestionSetDiagnostic(diagnostic: UnknownQuestionSetDiagnostic): string {
+  const known = diagnostic.knownQuestionSetIds.length > 0
+    ? diagnostic.knownQuestionSetIds.join(", ")
+    : "(none)";
+  return [
+    `Unknown question set: ${diagnostic.questionSetId}.`,
+    `Known questionSetIds: ${known}.`,
+    `Likely cause: ${diagnostic.likelyCause}.`
+  ].join(" ");
+}
+
+function createUnknownQuestionSetDiagnostic(
+  questionSetId: string,
+  knownQuestionSetIds: string[]
+): UnknownQuestionSetDiagnostic {
+  return {
+    error: "unknown_question_set",
+    questionSetId,
+    knownQuestionSetIds,
+    likelyCause: UNKNOWN_QUESTION_SET_LIKELY_CAUSE
+  };
 }
 
 function normalizeQuestions(questions: ShowQuestionsInput["questions"]): Question[] {

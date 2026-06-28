@@ -1,6 +1,6 @@
 # MCP Tool Contracts
 
-The server should expose local facts and alignment UI only. ChatGPT remains responsible for reasoning, recommendations, and Codex prompt writing.
+The server should expose local facts and alignment UI only. ChatGPT remains responsible for reasoning, recommendations, and any Codex prompt writing.
 
 ## project_snapshot
 
@@ -80,7 +80,11 @@ Hard-blocked secret-like paths and paths outside the repository are rejected. Ot
 
 Render multiple-choice questions created by ChatGPT.
 
-The server should not decide which questions to ask. It validates and stores the question set, returns structured question data, and renders the minimal ChatGPT App question widget. After calling this tool, ChatGPT should wait for `submit_answers` or the widget follow-up before continuing with recommendations or analysis.
+The server should not decide which questions to ask. It validates and stores the question set for the current Preflight server run, returns structured question data, and renders the minimal ChatGPT App question widget.
+
+ChatGPT should use `show_questions` naturally and proactively when user input would materially improve reliability, especially when there are meaningful trade-offs, missing preferences, unclear scope, or a real risk of producing the wrong output. The user should not need to say "ask me questions" for this tool to be useful.
+
+Do not use `show_questions` as a default workflow step. If the answer is clear, the task is narrow, or a direct response is sufficient, ChatGPT should answer directly. After calling this tool, ChatGPT should wait for `submit_answers` or the widget follow-up before continuing with recommendations or analysis.
 
 Input:
 
@@ -153,7 +157,7 @@ UI:
 
 ## submit_answers
 
-Store submitted answers in memory for the current session and return both compact IDs and selected option labels ChatGPT can use.
+Store submitted answers in memory for the current Preflight server run and return both compact IDs and selected option labels ChatGPT can use. The question store is shared across MCP HTTP sessions in one running server process so widget-initiated submits can answer question sets created by assistant-initiated `show_questions` calls.
 
 Input:
 
@@ -206,6 +210,7 @@ Validation:
 - repeated answers replace the previous stored answer for that question.
 - returned answers are ordered by the original question order.
 - `answeredQuestions` mirrors the stored answers and includes question text plus selected option labels.
+- unknown question sets return an error diagnostic with the requested `questionSetId`, known question set IDs, and likely causes.
 
 ## Deferred
 

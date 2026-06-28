@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { startMcpHttpServer } from "./httpServer.js";
-import { createPreflightMcpServer } from "./mcpServer.js";
+import { createPreflightMcpServerFactory } from "./mcpServer.js";
 import { QUESTION_WIDGET_MIME_TYPE, QUESTION_WIDGET_URI } from "./questionWidget.js";
 
 const EXPECTED_TOOLS = [
@@ -15,7 +15,7 @@ const EXPECTED_TOOLS = [
 ].sort();
 
 async function main(): Promise<void> {
-  const started = await startMcpHttpServer(() => createPreflightMcpServer({ repoPath: process.cwd() }), 0);
+  const started = await startMcpHttpServer(createPreflightMcpServerFactory({ repoPath: process.cwd() }), 0);
   const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${started.port}/mcp`));
   const client = new Client({ name: "preflight-smoke", version: "0.1.0" });
   let connected = false;
