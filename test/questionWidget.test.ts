@@ -8,7 +8,7 @@ import {
 } from "../src/questionWidget.js";
 
 test("question widget uses the expected resource URI and MIME type", () => {
-  assert.equal(QUESTION_WIDGET_URI, "ui://widget/questions-v1.html");
+  assert.equal(QUESTION_WIDGET_URI, "ui://widget/questions-v2.html");
   assert.equal(QUESTION_WIDGET_MIME_TYPE, "text/html;profile=mcp-app");
 });
 
@@ -26,7 +26,10 @@ test("question widget resource metadata keeps CSP closed", () => {
 test("question widget reads ChatGPT tool output and listens for host updates", () => {
   const html = createQuestionWidgetHtml();
 
-  assert.match(html, /window\.openai\?\.toolOutput/);
+  assert.match(html, /readOpenAiGlobal\("toolOutput"\)/);
+  assert.match(html, /event\.detail\?\.globals/);
+  assert.match(html, /cachedGlobals/);
+  assert.match(html, /startInitialPolling/);
   assert.match(html, /payload\?\.result\?\.content\?\.structuredContent/);
   assert.match(html, /ui\/notifications\/tool-result/);
   assert.match(html, /event\.source && event\.source !== window\.parent/);
@@ -41,6 +44,9 @@ test("question widget calls submit_answers through ChatGPT API with bridge fallb
   assert.match(html, /method: "tools\/call"/);
   assert.match(html, /window\.parent\.postMessage\(message, "\*"\)/);
   assert.match(html, /window\.openai\?\.callTool/);
+  assert.match(html, /window\.openai\?\.setWidgetState/);
+  assert.match(html, /window\.openai\?\.sendFollowUpMessage/);
+  assert.match(html, /catch \{\s*return false;\s*\}/);
   assert.ok(html.indexOf("window.openai?.callTool") < html.indexOf("return callBridgeTool"));
   assert.match(html, /callTool\("submit_answers"/);
   assert.match(html, /questionSetId:\s*currentData\.questionSetId/);
@@ -60,5 +66,6 @@ test("question widget renders recommended options and submit status", () => {
 
   assert.match(html, /Recommended/);
   assert.match(html, /Submit answers/);
-  assert.match(html, /"Stored " \+ storedAnswers\.length \+ " answer\(s\)\."/);
+  assert.match(html, /Answer " \+ remaining \+ " more question\(s\)\./);
+  assert.match(html, /"Stored " \+ storedAnswers\.length \+ " answer\(s\)\. Continuing\.\.\."/);
 });

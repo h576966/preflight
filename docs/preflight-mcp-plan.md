@@ -267,7 +267,7 @@ Lockfiles are not in the default allowlist. They can be read only when locally c
 
 Purpose: render multiple-choice questions created by ChatGPT.
 
-Phase 2B behavior: validate and store the question set, return structured question data with `rendered: true`, and render the minimal ChatGPT App question widget. Normal chat text remains a fallback when the widget is unavailable.
+Phase 2B behavior: validate and store the question set, return structured question data with `rendered: true`, and render the minimal ChatGPT App question widget. After `show_questions`, ChatGPT should wait for `submit_answers` or the widget follow-up before continuing with recommendations or analysis.
 
 Inputs:
 
@@ -324,9 +324,11 @@ Implementation notes:
 - Keep 1-10 questions per set.
 - Reusing `questionSetId` is allowed only for the same normalized question payload.
 - Recommended options must match an option in the same question.
-- Render widget resource `ui://widget/questions-v1.html`.
+- Render widget resource `ui://widget/questions-v2.html`.
 - Keep widget self-contained with no remote assets and empty CSP domain lists.
-- Let the widget call `submit_answers` after the user selects options.
+- Let the widget call `submit_answers` after the user answers all displayed questions.
+- Let the widget persist submitted answer state with `widgetState` when available.
+- Let the widget send a follow-up message with the submitted answer summary when available.
 - Use the MCP Apps bridge for tool results and widget-initiated tool calls, with `window.openai` as a ChatGPT compatibility fallback.
 
 ### submit_answers
@@ -357,6 +359,20 @@ Returns:
       "questionId": "string",
       "optionIds": ["string"]
     }
+  ],
+  "answeredQuestions": [
+    {
+      "questionId": "string",
+      "question": "string",
+      "optionIds": ["string"],
+      "selectedOptions": [
+        {
+          "id": "string",
+          "label": "string",
+          "description": "string"
+        }
+      ]
+    }
   ]
 }
 ```
@@ -369,6 +385,7 @@ Implementation notes:
 - Require one or more options for `multi` questions.
 - Repeated answers replace the previous stored answer for that question.
 - Return stored answers in the original question order.
+- Include selected option labels in `answeredQuestions` so ChatGPT can continue without resolving IDs.
 
 ## Deferred
 

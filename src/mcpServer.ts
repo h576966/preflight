@@ -5,7 +5,7 @@ import { DEFAULT_LIMITS } from "./constants.js";
 import { createLocalDiff } from "./localDiff.js";
 import { createProjectSnapshot } from "./projectSnapshot.js";
 import { QUESTION_WIDGET_URI, registerQuestionWidget } from "./questionWidget.js";
-import { formatQuestionSetForText, QuestionStore } from "./questions.js";
+import { formatAnswerSetForText, formatQuestionSetForText, QuestionStore } from "./questions.js";
 import { createReadLocal } from "./readLocal.js";
 
 export type PreflightServerOptions = {
@@ -39,6 +39,13 @@ const answerSchema = z.object({
   optionIds: z.array(z.string())
 });
 
+const answeredQuestionSchema = z.object({
+  questionId: z.string(),
+  question: z.string(),
+  optionIds: z.array(z.string()),
+  selectedOptions: z.array(questionOptionSchema)
+});
+
 export function createPreflightMcpServer(options: PreflightServerOptions): McpServer {
   const questionStore = new QuestionStore();
   const server = new McpServer(
@@ -53,6 +60,7 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
         "Use local_diff for bounded tracked-file patches when local changes matter.",
         "Use read_local for bounded local-only or exact-path file reads.",
         "Use show_questions and submit_answers to keep alignment choices explicit in chat.",
+        "After calling show_questions, wait for submit_answers or a Preflight widget follow-up before making recommendations.",
         "Prefer GitHub for committed remote code/docs; use Preflight for local state, diffs, and exact local paths."
       ].join(" ")
     }
@@ -180,7 +188,8 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
       title: "Show Questions",
       description: [
         "Use this when you need to ask the user concise single-choice or multi-choice alignment questions.",
-        "Stores the question set, renders the question widget when available, and returns a normal-chat text fallback."
+        "Stores the question set and renders the question widget.",
+        "After calling it, wait for submitted answers before continuing with recommendations or analysis."
       ].join(" "),
       inputSchema: {
         questionSetId: z.string(),
@@ -202,7 +211,7 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
         },
         "openai/outputTemplate": QUESTION_WIDGET_URI,
         "openai/toolInvocation/invoking": "Rendering questions...",
-        "openai/toolInvocation/invoked": "Questions ready."
+        "openai/toolInvocation/invoked": "Questions ready. Waiting for answers."
       }
     },
     async (args): Promise<CallToolResult> => {
@@ -234,7 +243,8 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
       },
       outputSchema: {
         questionSetId: z.string(),
-        answers: z.array(answerSchema)
+        answers: z.array(answerSchema),
+        answeredQuestions: z.array(answeredQuestionSchema)
       },
       annotations: {
         destructiveHint: false,
@@ -256,7 +266,7 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
         content: [
           {
             type: "text",
-            text: `Stored ${result.answers.length} answer(s) for question set ${result.questionSetId}.`
+            text: formatAnswerSetForText(result)
           }
         ]
       };

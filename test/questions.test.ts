@@ -206,6 +206,14 @@ test("QuestionStore stores a valid single answer", () => {
   });
 
   assert.deepEqual(result.answers, [{ questionId: "scope", optionIds: ["simple"] }]);
+  assert.deepEqual(result.answeredQuestions, [{
+    questionId: "scope",
+    question: "What should this change optimize for?",
+    optionIds: ["simple"],
+    selectedOptions: [
+      { id: "simple", label: "Keep it simple", description: "Prefer the smallest useful change." }
+    ]
+  }]);
 });
 
 test("QuestionStore rejects multiple options for single-choice answers", () => {

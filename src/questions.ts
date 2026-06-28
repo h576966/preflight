@@ -1,4 +1,5 @@
 import type {
+  AnsweredQuestion,
   Question,
   QuestionAnswer,
   QuestionMode,
@@ -84,23 +85,26 @@ export class QuestionStore {
 
     return {
       questionSetId,
-      answers: orderedAnswers(questionSet)
+      answers: orderedAnswers(questionSet),
+      answeredQuestions: orderedAnsweredQuestions(questionSet)
     };
   }
 }
 
 export function formatQuestionSetForText(result: ShowQuestionsResult): string {
-  const lines = [`Question set ${result.questionSetId}`];
+  return [
+    `Question set ${result.questionSetId} is ready in the Preflight widget.`,
+    "Wait for the user's submitted answers before continuing."
+  ].join(" ");
+}
 
-  result.questions.forEach((question, questionIndex) => {
-    lines.push(`${questionIndex + 1}. ${question.question}`);
+export function formatAnswerSetForText(result: SubmitAnswersResult): string {
+  const lines = [`Stored ${result.answers.length} answer(s) for question set ${result.questionSetId}.`];
 
-    for (const option of question.options) {
-      const recommended = option.id === question.recommendedOptionId ? " (recommended)" : "";
-      const description = option.description ? ` - ${option.description}` : "";
-      lines.push(`   - ${option.id}: ${option.label}${recommended}${description}`);
-    }
-  });
+  for (const answer of result.answeredQuestions) {
+    const labels = answer.selectedOptions.map((option) => option.label).join(", ");
+    lines.push(`- ${answer.question}: ${labels}`);
+  }
 
   return lines.join("\n");
 }
@@ -202,6 +206,21 @@ function orderedAnswers(questionSet: StoredQuestionSet): QuestionAnswer[] {
   return questionSet.questions.flatMap((question) => {
     const optionIds = questionSet.answers.get(question.id);
     return optionIds ? [{ questionId: question.id, optionIds: [...optionIds] }] : [];
+  });
+}
+
+function orderedAnsweredQuestions(questionSet: StoredQuestionSet): AnsweredQuestion[] {
+  return questionSet.questions.flatMap((question) => {
+    const optionIds = questionSet.answers.get(question.id);
+    if (!optionIds) return [];
+
+    const optionById = new Map(question.options.map((option) => [option.id, option]));
+    return [{
+      questionId: question.id,
+      question: question.question,
+      optionIds: [...optionIds],
+      selectedOptions: optionIds.map((optionId) => ({ ...optionById.get(optionId)! }))
+    }];
   });
 }
 

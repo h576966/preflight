@@ -102,6 +102,13 @@ export type QuestionAnswer = {
   optionIds: string[];
 };
 
+export type AnsweredQuestion = {
+  questionId: string;
+  question: string;
+  optionIds: string[];
+  selectedOptions: QuestionOption[];
+};
+
 export type ShowQuestionsInput = {
   questionSetId: string;
   questions: Array<Omit<Question, "recommendedOptionId"> & { recommendedOptionId?: string | null }>;
@@ -121,4 +128,5 @@ export type SubmitAnswersInput = {
 export type SubmitAnswersResult = {
   questionSetId: string;
   answers: QuestionAnswer[];
+  answeredQuestions: AnsweredQuestion[];
 };

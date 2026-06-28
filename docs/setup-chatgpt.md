@@ -192,8 +192,8 @@ Use a new ChatGPT chat after creating or refreshing the connector.
 4. Ask ChatGPT to call `read_local` for one safe exact path such as `README.md` or `AGENTS.md`.
 5. Ask ChatGPT to call `show_questions` with one single-choice and one multi-choice question.
 6. Confirm the question widget renders.
-7. Select options in the widget and submit.
-8. Confirm ChatGPT receives a `submit_answers` result with the stored answer count.
+7. Answer every displayed question in the widget and submit.
+8. Confirm ChatGPT continues after submit and includes the selected answer labels.
 9. Repeat `show_questions` with the same `questionSetId` and same payload to verify idempotent replay.
 10. Repeat `show_questions` with the same `questionSetId` and changed payload to verify it is rejected.
 

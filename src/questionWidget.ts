@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-export const QUESTION_WIDGET_URI = "ui://widget/questions-v1.html";
+export const QUESTION_WIDGET_URI = "ui://widget/questions-v2.html";
 export const QUESTION_WIDGET_MIME_TYPE = "text/html;profile=mcp-app";
 
 export function createQuestionWidgetResourceMetadata() {
@@ -150,16 +150,44 @@ export function createQuestionWidgetHtml(): string {
 </head>
 <body>
   <main id="app">
-    <p id="empty">No questions loaded.</p>
+    <p id="empty">Waiting for question data...</p>
   </main>
   <script>
     const app = document.getElementById("app");
     let currentData = null;
+    const cachedGlobals = {};
     let bridgeRequestId = 1;
+    let initialPollId = null;
     const pendingBridgeRequests = new Map();
 
     function getToolOutput() {
-      return window.openai?.toolOutput || window.openai?.toolResponse?.structuredContent || null;
+      const toolOutput = readOpenAiGlobal("toolOutput");
+      if (toolOutput) return extractStructuredContent(toolOutput) || toolOutput;
+
+      const toolResponse = readOpenAiGlobal("toolResponse");
+      if (toolResponse) return extractStructuredContent(toolResponse);
+
+      return null;
+    }
+
+    function readOpenAiGlobal(key) {
+      const value = window.openai?.[key];
+      if (value !== undefined) {
+        cachedGlobals[key] = value;
+        return value;
+      }
+
+      return Object.prototype.hasOwnProperty.call(cachedGlobals, key)
+        ? cachedGlobals[key]
+        : undefined;
+    }
+
+    function updateCachedGlobals(globals) {
+      if (!globals || typeof globals !== "object") return;
+
+      for (const [key, value] of Object.entries(globals)) {
+        if (value !== undefined) cachedGlobals[key] = value;
+      }
     }
 
     function extractStructuredContent(payload) {
@@ -242,12 +270,15 @@ export function createQuestionWidgetHtml(): string {
     }
 
     function render(data = getToolOutput()) {
-      currentData = data;
-
       if (!data || !Array.isArray(data.questions) || data.questions.length === 0) {
-        app.innerHTML = '<p id="empty">No questions loaded.</p>';
+        if (!currentData) {
+          app.innerHTML = '<p id="empty">Waiting for question data...</p>';
+        }
         return;
       }
+
+      currentData = data;
+      stopInitialPolling();
 
       const form = document.createElement("form");
       form.id = "question-form";
@@ -346,10 +377,79 @@ export function createQuestionWidgetHtml(): string {
       if (!button || !status) return;
 
       const answers = collectAnswers();
-      button.disabled = answers.length === 0;
-      status.textContent = answers.length === 0
-        ? "Select at least one option."
+      const questionCount = Array.isArray(currentData?.questions) ? currentData.questions.length : 0;
+      const remaining = Math.max(0, questionCount - answers.length);
+
+      button.disabled = questionCount === 0 || remaining > 0;
+      status.textContent = remaining > 0
+        ? "Answer " + remaining + " more question(s)."
         : answers.length + " answer(s) selected.";
+    }
+
+    function formatSubmittedAnswers(structuredContent, fallbackAnswers) {
+      if (Array.isArray(structuredContent?.answeredQuestions) && structuredContent.answeredQuestions.length > 0) {
+        return structuredContent.answeredQuestions.map((answer) => {
+          const selectedLabels = Array.isArray(answer.selectedOptions)
+            ? answer.selectedOptions.map((option) => option.label).join(", ")
+            : answer.optionIds.join(", ");
+          return "- " + answer.question + ": " + selectedLabels;
+        }).join("\n");
+      }
+
+      return fallbackAnswers.map((answer) => {
+        const question = currentData.questions.find((item) => item.id === answer.questionId);
+        const optionLabels = answer.optionIds.map((optionId) => {
+          const option = question?.options.find((item) => item.id === optionId);
+          return option?.label || optionId;
+        }).join(", ");
+        return "- " + (question?.question || answer.questionId) + ": " + optionLabels;
+      }).join("\n");
+    }
+
+    async function notifyModelAfterSubmit(structuredContent, summary) {
+      const widgetState = {
+        questionSetId: currentData.questionSetId,
+        answers: structuredContent?.answers || [],
+        answeredQuestions: structuredContent?.answeredQuestions || [],
+        submittedAt: new Date().toISOString()
+      };
+
+      if (window.openai?.setWidgetState) {
+        await window.openai.setWidgetState(widgetState).catch(() => undefined);
+      }
+
+      if (!window.openai?.sendFollowUpMessage) return false;
+
+      try {
+        await window.openai.sendFollowUpMessage({
+          prompt: "Preflight questions have been answered. Continue from the previous task using these answers:\n" + summary,
+          scrollToBottom: true
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    function stopInitialPolling() {
+      if (initialPollId !== null) {
+        window.clearInterval(initialPollId);
+        initialPollId = null;
+      }
+    }
+
+    function startInitialPolling() {
+      let remainingChecks = 40;
+      initialPollId = window.setInterval(() => {
+        const data = getToolOutput();
+        if (data) {
+          render(data);
+          return;
+        }
+
+        remainingChecks -= 1;
+        if (remainingChecks <= 0) stopInitialPolling();
+      }, 250);
     }
 
     async function submitAnswers(event) {
@@ -357,8 +457,9 @@ export function createQuestionWidgetHtml(): string {
       const status = app.querySelector("#status");
       const button = app.querySelector("button[type='submit']");
       const answers = collectAnswers();
+      const questionCount = Array.isArray(currentData?.questions) ? currentData.questions.length : 0;
 
-      if (!currentData?.questionSetId || answers.length === 0) return;
+      if (!currentData?.questionSetId || answers.length < questionCount) return;
 
       try {
         if (button) button.disabled = true;
@@ -369,8 +470,15 @@ export function createQuestionWidgetHtml(): string {
           answers
         });
 
-        const storedAnswers = extractStructuredContent(result)?.answers || result?.answers || [];
-        if (status) status.textContent = "Stored " + storedAnswers.length + " answer(s).";
+        const structuredContent = extractStructuredContent(result) || result || {};
+        const storedAnswers = structuredContent.answers || answers;
+        const summary = formatSubmittedAnswers(structuredContent, storedAnswers);
+        const notified = await notifyModelAfterSubmit(structuredContent, summary);
+        if (status) {
+          status.textContent = notified
+            ? "Stored " + storedAnswers.length + " answer(s). Continuing..."
+            : "Stored " + storedAnswers.length + " answer(s).";
+        }
         if (button) button.disabled = answers.length === 0;
       } catch (error) {
         if (status) status.textContent = formatErrorMessage(error);
@@ -379,8 +487,12 @@ export function createQuestionWidgetHtml(): string {
     }
 
     window.addEventListener("message", handleBridgeMessage);
-    window.addEventListener("openai:set_globals", () => render());
+    window.addEventListener("openai:set_globals", (event) => {
+      updateCachedGlobals(event.detail?.globals);
+      render();
+    });
     render();
+    startInitialPolling();
   </script>
 </body>
 </html>`;

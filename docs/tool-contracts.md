@@ -80,7 +80,7 @@ Hard-blocked secret-like paths and paths outside the repository are rejected. Ot
 
 Render multiple-choice questions created by ChatGPT.
 
-The server should not decide which questions to ask. It validates and stores the question set, returns structured question data, and renders the minimal ChatGPT App question widget. Normal chat text remains a fallback when the widget is unavailable.
+The server should not decide which questions to ask. It validates and stores the question set, returns structured question data, and renders the minimal ChatGPT App question widget. After calling this tool, ChatGPT should wait for `submit_answers` or the widget follow-up before continuing with recommendations or analysis.
 
 Input:
 
@@ -140,16 +140,18 @@ Validation:
 
 UI:
 
-- widget resource: `ui://widget/questions-v1.html`
+- widget resource: `ui://widget/questions-v2.html`
 - widget MIME type: `text/html;profile=mcp-app`
 - no remote assets or external CSP domains
 - widget uses the MCP Apps bridge for tool results and widget-initiated tool calls
 - widget falls back to ChatGPT `window.openai` helpers when the bridge path is unavailable
-- widget calls `submit_answers` after the user selects options
+- widget calls `submit_answers` after the user answers all displayed questions
+- widget stores the submitted answers in `widgetState` when available
+- widget uses `sendFollowUpMessage` when available so ChatGPT continues with the selected answers
 
 ## submit_answers
 
-Store submitted answers in memory for the current session and return them in a compact format ChatGPT can use.
+Store submitted answers in memory for the current session and return both compact IDs and selected option labels ChatGPT can use.
 
 Input:
 
@@ -175,6 +177,20 @@ Output:
       "questionId": "string",
       "optionIds": ["string"]
     }
+  ],
+  "answeredQuestions": [
+    {
+      "questionId": "string",
+      "question": "string",
+      "optionIds": ["string"],
+      "selectedOptions": [
+        {
+          "id": "string",
+          "label": "string",
+          "description": "string"
+        }
+      ]
+    }
   ]
 }
 ```
@@ -187,6 +203,7 @@ Validation:
 - multi-choice questions require at least one option.
 - repeated answers replace the previous stored answer for that question.
 - returned answers are ordered by the original question order.
+- `answeredQuestions` mirrors the stored answers and includes question text plus selected option labels.
 
 ## Deferred
 
