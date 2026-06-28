@@ -200,14 +200,20 @@ export function createQuestionWidgetHtml(): string {
     }
 
     async function callTool(name, args) {
-      try {
-        return await callBridgeTool(name, args);
-      } catch (error) {
-        if (window.openai?.callTool) {
-          return window.openai.callTool(name, args);
-        }
-        throw error;
+      if (window.openai?.callTool) {
+        return window.openai.callTool(name, args);
       }
+
+      return callBridgeTool(name, args);
+    }
+
+    function formatErrorMessage(error) {
+      if (error instanceof Error) return error.message;
+      if (typeof error === "string") return error;
+      if (error && typeof error === "object" && "message" in error) {
+        return String(error.message);
+      }
+      return "Could not submit answers.";
     }
 
     function handleBridgeMessage(event) {
@@ -367,7 +373,7 @@ export function createQuestionWidgetHtml(): string {
         if (status) status.textContent = "Stored " + storedAnswers.length + " answer(s).";
         if (button) button.disabled = answers.length === 0;
       } catch (error) {
-        if (status) status.textContent = error instanceof Error ? error.message : "Could not submit answers.";
+        if (status) status.textContent = formatErrorMessage(error);
         if (button) button.disabled = answers.length === 0;
       }
     }

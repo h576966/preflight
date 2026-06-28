@@ -19,6 +19,7 @@ Start here:
 ```bash
 npm install
 npm test
+npm run smoke
 npm start -- --repo C:\path\to\repo
 ```
 

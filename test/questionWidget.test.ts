@@ -35,15 +35,17 @@ test("question widget reads ChatGPT tool output and listens for host updates", (
   assert.match(html, /render\(\)/);
 });
 
-test("question widget calls submit_answers through the bridge with ChatGPT fallback", () => {
+test("question widget calls submit_answers through ChatGPT API with bridge fallback", () => {
   const html = createQuestionWidgetHtml();
 
   assert.match(html, /method: "tools\/call"/);
   assert.match(html, /window\.parent\.postMessage\(message, "\*"\)/);
   assert.match(html, /window\.openai\?\.callTool/);
+  assert.ok(html.indexOf("window.openai?.callTool") < html.indexOf("return callBridgeTool"));
   assert.match(html, /callTool\("submit_answers"/);
   assert.match(html, /questionSetId:\s*currentData\.questionSetId/);
   assert.match(html, /answers/);
+  assert.match(html, /formatErrorMessage/);
 });
 
 test("question widget supports radio and checkbox inputs", () => {
