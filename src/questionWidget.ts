@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-export const QUESTION_WIDGET_URI = "ui://widget/questions-v2.html";
+export const QUESTION_WIDGET_URI = "ui://widget/questions-v4.html";
 export const QUESTION_WIDGET_MIME_TYPE = "text/html;profile=mcp-app";
 
 export function createQuestionWidgetResourceMetadata() {
@@ -9,13 +9,13 @@ export function createQuestionWidgetResourceMetadata() {
     description: "Displays single-choice and multi-choice alignment questions.",
     _meta: {
       "openai/widgetDescription": "Displays single-choice and multi-choice alignment questions.",
-      "openai/widgetPrefersBorder": true,
+      "openai/widgetPrefersBorder": false,
       "openai/widgetCSP": {
         connect_domains: [],
         resource_domains: []
       },
       ui: {
-        prefersBorder: true,
+        prefersBorder: false,
         csp: {
           connectDomains: [],
           resourceDomains: []
@@ -60,38 +60,67 @@ export function createQuestionWidgetHtml(): string {
       color-scheme: light dark;
       font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       line-height: 1.35;
+      --accent: #2563eb;
+      --muted: color-mix(in srgb, CanvasText 62%, transparent);
+      --subtle: color-mix(in srgb, CanvasText 8%, transparent);
+      --separator: color-mix(in srgb, CanvasText 12%, transparent);
     }
 
     body {
       margin: 0;
-      padding: 14px;
+      padding: 10px 12px 12px;
       background: Canvas;
       color: CanvasText;
     }
 
     form {
       display: grid;
-      gap: 14px;
+      gap: 4px;
     }
 
     fieldset {
-      border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
-      border-radius: 8px;
-      padding: 12px;
+      border: 0;
+      border-radius: 0;
+      padding: 8px 0 12px;
       margin: 0;
     }
 
+    fieldset + fieldset {
+      border-top: 1px solid var(--separator);
+      padding-top: 16px;
+    }
+
     legend {
-      padding: 0 4px;
-      font-weight: 650;
+      padding: 0;
+      margin-bottom: 6px;
+      font-size: 15px;
+      font-weight: 680;
+      letter-spacing: 0;
     }
 
     .option {
       display: grid;
       grid-template-columns: 20px 1fr;
-      gap: 8px;
-      align-items: start;
-      padding: 8px 0 0;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 10px;
+      margin: 2px -10px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 120ms ease, color 120ms ease;
+    }
+
+    .option:hover {
+      background: var(--subtle);
+    }
+
+    .option:has(input:checked) {
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+    }
+
+    input {
+      accent-color: var(--accent);
+      margin-top: 1px;
     }
 
     .label-row {
@@ -105,13 +134,13 @@ export function createQuestionWidgetHtml(): string {
     .recommended {
       font-size: 12px;
       font-weight: 600;
-      opacity: 0.72;
+      color: var(--muted);
     }
 
     .description {
       margin: 2px 0 0;
       font-size: 13px;
-      opacity: 0.78;
+      color: var(--muted);
     }
 
     .actions {
@@ -119,32 +148,37 @@ export function createQuestionWidgetHtml(): string {
       gap: 10px;
       align-items: center;
       flex-wrap: wrap;
+      border-top: 1px solid var(--separator);
+      margin-top: 2px;
+      padding-top: 12px;
     }
 
     button {
-      border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
+      border: 0;
       border-radius: 8px;
-      background: ButtonFace;
-      color: ButtonText;
+      background: var(--accent);
+      color: white;
       cursor: pointer;
       font: inherit;
       font-weight: 650;
       padding: 8px 12px;
+      min-height: 36px;
     }
 
     button:disabled {
       cursor: not-allowed;
-      opacity: 0.55;
+      background: color-mix(in srgb, CanvasText 10%, Canvas);
+      color: var(--muted);
     }
 
     #status {
       font-size: 13px;
-      opacity: 0.82;
+      color: var(--muted);
     }
 
     #empty {
       margin: 0;
-      opacity: 0.72;
+      color: var(--muted);
     }
   </style>
 </head>
@@ -155,6 +189,7 @@ export function createQuestionWidgetHtml(): string {
   <script>
     const app = document.getElementById("app");
     let currentData = null;
+    let currentWidgetState = null;
     const cachedGlobals = {};
     let bridgeRequestId = 1;
     let initialPollId = null;
@@ -188,6 +223,91 @@ export function createQuestionWidgetHtml(): string {
       for (const [key, value] of Object.entries(globals)) {
         if (value !== undefined) cachedGlobals[key] = value;
       }
+    }
+
+    function isObject(value) {
+      return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+    }
+
+    function isQuestionPayload(data) {
+      return isObject(data) && typeof data.questionSetId === "string" && Array.isArray(data.questions);
+    }
+
+    function isSubmitResult(data) {
+      return isObject(data) && typeof data.questionSetId === "string" && Array.isArray(data.answers);
+    }
+
+    function normalizeSelections(value) {
+      if (!isObject(value)) return {};
+
+      const selections = {};
+      for (const [questionId, optionIds] of Object.entries(value)) {
+        if (!Array.isArray(optionIds)) continue;
+        selections[questionId] = optionIds.filter((optionId) => typeof optionId === "string");
+      }
+      return selections;
+    }
+
+    function answersToSelections(answers) {
+      const selections = {};
+      for (const answer of answers) {
+        if (typeof answer.questionId === "string" && Array.isArray(answer.optionIds)) {
+          selections[answer.questionId] = answer.optionIds.filter((optionId) => typeof optionId === "string");
+        }
+      }
+      return selections;
+    }
+
+    function getStoredWidgetState() {
+      if (currentWidgetState?.questionSetId === currentData?.questionSetId) {
+        return currentWidgetState;
+      }
+
+      const hostState = readOpenAiGlobal("widgetState");
+      if (hostState?.questionSetId === currentData?.questionSetId) {
+        currentWidgetState = hostState;
+        return hostState;
+      }
+
+      return null;
+    }
+
+    function createWidgetState(patch = {}) {
+      const storedState = getStoredWidgetState();
+      return {
+        questionSetId: currentData.questionSetId,
+        questions: currentData.questions,
+        selections: normalizeSelections(storedState?.selections),
+        submitStatus: storedState?.submitStatus || "idle",
+        submittedResult: storedState?.submittedResult || null,
+        updatedAt: new Date().toISOString(),
+        ...patch
+      };
+    }
+
+    async function persistWidgetState(patch = {}) {
+      if (!currentData?.questionSetId) return null;
+
+      const nextState = createWidgetState(patch);
+      currentWidgetState = nextState;
+      cachedGlobals.widgetState = nextState;
+
+      if (window.openai?.setWidgetState) {
+        try {
+          const maybePromise = window.openai.setWidgetState(nextState);
+          if (maybePromise && typeof maybePromise.then === "function") {
+            await maybePromise;
+          }
+        } catch {
+          // Local state is already updated; host persistence is a best-effort layer.
+        }
+      }
+
+      return nextState;
+    }
+
+    function persistWidgetStateSoon(patch = {}) {
+      void persistWidgetState(patch);
     }
 
     function extractStructuredContent(payload) {
@@ -270,7 +390,12 @@ export function createQuestionWidgetHtml(): string {
     }
 
     function render(data = getToolOutput()) {
-      if (!data || !Array.isArray(data.questions) || data.questions.length === 0) {
+      if (isSubmitResult(data)) {
+        applySubmittedResult(data);
+        return;
+      }
+
+      if (!isQuestionPayload(data) || data.questions.length === 0) {
         if (!currentData) {
           app.innerHTML = '<p id="empty">Waiting for question data...</p>';
         }
@@ -302,7 +427,7 @@ export function createQuestionWidgetHtml(): string {
           input.name = question.id;
           input.value = option.id;
           input.dataset.questionId = question.id;
-          input.addEventListener("change", updateSubmitState);
+          input.addEventListener("change", handleAnswerChange);
 
           const text = document.createElement("span");
 
@@ -353,7 +478,36 @@ export function createQuestionWidgetHtml(): string {
       form.addEventListener("submit", submitAnswers);
 
       app.replaceChildren(form);
+      restoreSelections();
+      if (!getStoredWidgetState()) {
+        persistWidgetStateSoon({
+          selections: {},
+          submitStatus: "idle",
+          submittedResult: null
+        });
+      }
       updateSubmitState();
+    }
+
+    function applySubmittedResult(result) {
+      if (!currentData || result.questionSetId !== currentData.questionSetId) return;
+
+      const selections = answersToSelections(result.answers);
+      persistWidgetStateSoon({
+        selections,
+        submitStatus: "submitted",
+        submittedResult: result
+      });
+      restoreSelections();
+      updateSubmitState();
+    }
+
+    function restoreSelections() {
+      const selections = normalizeSelections(getStoredWidgetState()?.selections);
+      for (const input of app.querySelectorAll("input[data-question-id]")) {
+        const selectedOptions = selections[input.dataset.questionId] || [];
+        input.checked = selectedOptions.includes(input.value);
+      }
     }
 
     function collectAnswers() {
@@ -371,10 +525,34 @@ export function createQuestionWidgetHtml(): string {
       return Array.from(answersByQuestion, ([questionId, optionIds]) => ({ questionId, optionIds }));
     }
 
+    function handleAnswerChange() {
+      const answers = collectAnswers();
+      persistWidgetStateSoon({
+        selections: answersToSelections(answers),
+        submitStatus: "idle",
+        submittedResult: null
+      });
+      updateSubmitState();
+    }
+
     function updateSubmitState() {
       const button = app.querySelector("button[type='submit']");
       const status = app.querySelector("#status");
       if (!button || !status) return;
+
+      const storedState = getStoredWidgetState();
+      const submittedAnswers = storedState?.submittedResult?.answers;
+      if (storedState?.submitStatus === "submitted") {
+        button.disabled = true;
+        status.textContent = "Stored " + (Array.isArray(submittedAnswers) ? submittedAnswers.length : 0) + " answer(s). Continuing...";
+        return;
+      }
+
+      if (storedState?.submitStatus === "submitting") {
+        button.disabled = true;
+        status.textContent = "Submitting...";
+        return;
+      }
 
       const answers = collectAnswers();
       const questionCount = Array.isArray(currentData?.questions) ? currentData.questions.length : 0;
@@ -407,17 +585,6 @@ export function createQuestionWidgetHtml(): string {
     }
 
     async function notifyModelAfterSubmit(structuredContent, summary) {
-      const widgetState = {
-        questionSetId: currentData.questionSetId,
-        answers: structuredContent?.answers || [],
-        answeredQuestions: structuredContent?.answeredQuestions || [],
-        submittedAt: new Date().toISOString()
-      };
-
-      if (window.openai?.setWidgetState) {
-        await window.openai.setWidgetState(widgetState).catch(() => undefined);
-      }
-
       if (!window.openai?.sendFollowUpMessage) return false;
 
       try {
@@ -460,10 +627,16 @@ export function createQuestionWidgetHtml(): string {
       const questionCount = Array.isArray(currentData?.questions) ? currentData.questions.length : 0;
 
       if (!currentData?.questionSetId || answers.length < questionCount) return;
+      const selections = answersToSelections(answers);
 
       try {
         if (button) button.disabled = true;
         if (status) status.textContent = "Submitting...";
+        await persistWidgetState({
+          selections,
+          submitStatus: "submitting",
+          submittedResult: null
+        });
 
         const result = await callTool("submit_answers", {
           questionSetId: currentData.questionSetId,
@@ -473,14 +646,24 @@ export function createQuestionWidgetHtml(): string {
         const structuredContent = extractStructuredContent(result) || result || {};
         const storedAnswers = structuredContent.answers || answers;
         const summary = formatSubmittedAnswers(structuredContent, storedAnswers);
+        await persistWidgetState({
+          selections: answersToSelections(storedAnswers),
+          submitStatus: "submitted",
+          submittedResult: structuredContent
+        });
         const notified = await notifyModelAfterSubmit(structuredContent, summary);
         if (status) {
           status.textContent = notified
             ? "Stored " + storedAnswers.length + " answer(s). Continuing..."
             : "Stored " + storedAnswers.length + " answer(s).";
         }
-        if (button) button.disabled = answers.length === 0;
+        if (button) button.disabled = true;
       } catch (error) {
+        await persistWidgetState({
+          selections,
+          submitStatus: "idle",
+          submittedResult: null
+        });
         if (status) status.textContent = formatErrorMessage(error);
         if (button) button.disabled = answers.length === 0;
       }

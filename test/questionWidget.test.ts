@@ -8,15 +8,15 @@ import {
 } from "../src/questionWidget.js";
 
 test("question widget uses the expected resource URI and MIME type", () => {
-  assert.equal(QUESTION_WIDGET_URI, "ui://widget/questions-v2.html");
+  assert.equal(QUESTION_WIDGET_URI, "ui://widget/questions-v4.html");
   assert.equal(QUESTION_WIDGET_MIME_TYPE, "text/html;profile=mcp-app");
 });
 
 test("question widget resource metadata keeps CSP closed", () => {
   const metadata = createQuestionWidgetResourceMetadata();
 
-  assert.equal(metadata._meta.ui.prefersBorder, true);
-  assert.equal(metadata._meta["openai/widgetPrefersBorder"], true);
+  assert.equal(metadata._meta.ui.prefersBorder, false);
+  assert.equal(metadata._meta["openai/widgetPrefersBorder"], false);
   assert.deepEqual(metadata._meta["openai/widgetCSP"].connect_domains, []);
   assert.deepEqual(metadata._meta["openai/widgetCSP"].resource_domains, []);
   assert.deepEqual(metadata._meta.ui.csp.connectDomains, []);
@@ -30,6 +30,7 @@ test("question widget reads ChatGPT tool output and listens for host updates", (
   assert.match(html, /event\.detail\?\.globals/);
   assert.match(html, /cachedGlobals/);
   assert.match(html, /startInitialPolling/);
+  assert.match(html, /readOpenAiGlobal\("widgetState"\)/);
   assert.match(html, /payload\?\.result\?\.content\?\.structuredContent/);
   assert.match(html, /ui\/notifications\/tool-result/);
   assert.match(html, /event\.source && event\.source !== window\.parent/);
@@ -46,7 +47,14 @@ test("question widget calls submit_answers through ChatGPT API with bridge fallb
   assert.match(html, /window\.openai\?\.callTool/);
   assert.match(html, /window\.openai\?\.setWidgetState/);
   assert.match(html, /window\.openai\?\.sendFollowUpMessage/);
+  assert.match(html, /const maybePromise = window\.openai\.setWidgetState\(nextState\)/);
+  assert.doesNotMatch(html, /setWidgetState\(nextState\)\.catch/);
+  assert.match(html, /input\.addEventListener\("change", handleAnswerChange\)/);
+  assert.match(html, /restoreSelections\(\)/);
+  assert.match(html, /submitStatus: "submitting"/);
+  assert.match(html, /submitStatus: "submitted"/);
   assert.match(html, /catch \{\s*return false;\s*\}/);
+  assert.ok(html.indexOf('submitStatus: "submitting"') < html.indexOf('callTool("submit_answers"'));
   assert.ok(html.indexOf("window.openai?.callTool") < html.indexOf("return callBridgeTool"));
   assert.match(html, /callTool\("submit_answers"/);
   assert.match(html, /questionSetId:\s*currentData\.questionSetId/);
@@ -66,6 +74,8 @@ test("question widget renders recommended options and submit status", () => {
 
   assert.match(html, /Recommended/);
   assert.match(html, /Submit answers/);
+  assert.match(html, /isSubmitResult\(data\)/);
   assert.match(html, /Answer " \+ remaining \+ " more question\(s\)\./);
   assert.match(html, /"Stored " \+ storedAnswers\.length \+ " answer\(s\)\. Continuing\.\.\."/);
+  assert.match(html, /button\.disabled = true/);
 });

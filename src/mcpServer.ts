@@ -219,6 +219,9 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
 
       return {
         structuredContent: result,
+        _meta: {
+          "openai/widgetSessionId": result.questionSetId
+        },
         content: [
           {
             type: "text",
@@ -263,6 +266,9 @@ export function createPreflightMcpServer(options: PreflightServerOptions): McpSe
 
       return {
         structuredContent: result,
+        _meta: {
+          "openai/widgetSessionId": result.questionSetId
+        },
         content: [
           {
             type: "text",

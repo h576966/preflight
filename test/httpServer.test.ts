@@ -35,3 +35,46 @@ test("startMcpHttpServer accepts repeated client sessions", async () => {
     await started.close();
   }
 });
+
+test("question tools return a stable widget session id", async () => {
+  const started = await startMcpHttpServer(() => createPreflightMcpServer({ repoPath: process.cwd() }), 0);
+  const client = new Client({ name: "preflight-question-session-test", version: "0.1.0" });
+
+  try {
+    const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${started.port}/mcp`));
+    await client.connect(transport);
+
+    const questionSetId = "session-test";
+    const showResult = await client.callTool({
+      name: "show_questions",
+      arguments: {
+        questionSetId,
+        questions: [{
+          id: "focus",
+          question: "What should Preflight focus on?",
+          mode: "single",
+          recommendedOptionId: "ui",
+          options: [
+            { id: "ui", label: "Question UI", description: "Test the widget." },
+            { id: "tools", label: "Local tools", description: "Test local repo tools." }
+          ]
+        }]
+      }
+    });
+
+    assert.equal(showResult._meta?.["openai/widgetSessionId"], questionSetId);
+
+    const submitResult = await client.callTool({
+      name: "submit_answers",
+      arguments: {
+        questionSetId,
+        answers: [{ questionId: "focus", optionIds: ["ui"] }]
+      }
+    });
+
+    assert.equal(submitResult._meta?.["openai/widgetSessionId"], questionSetId);
+  } finally {
+    await client.close().catch(() => undefined);
+    await started.close();
+  }
+});

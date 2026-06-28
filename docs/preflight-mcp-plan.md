@@ -324,10 +324,11 @@ Implementation notes:
 - Keep 1-10 questions per set.
 - Reusing `questionSetId` is allowed only for the same normalized question payload.
 - Recommended options must match an option in the same question.
-- Render widget resource `ui://widget/questions-v2.html`.
+- Render widget resource `ui://widget/questions-v4.html`.
 - Keep widget self-contained with no remote assets and empty CSP domain lists.
 - Let the widget call `submit_answers` after the user answers all displayed questions.
-- Let the widget persist submitted answer state with `widgetState` when available.
+- Return `_meta["openai/widgetSessionId"]` as the `questionSetId`.
+- Let the widget persist selections and submitted answer state with `widgetState` when available.
 - Let the widget send a follow-up message with the submitted answer summary when available.
 - Use the MCP Apps bridge for tool results and widget-initiated tool calls, with `window.openai` as a ChatGPT compatibility fallback.
 

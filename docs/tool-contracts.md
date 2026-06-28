@@ -140,13 +140,14 @@ Validation:
 
 UI:
 
-- widget resource: `ui://widget/questions-v2.html`
+- widget resource: `ui://widget/questions-v4.html`
 - widget MIME type: `text/html;profile=mcp-app`
 - no remote assets or external CSP domains
 - widget uses the MCP Apps bridge for tool results and widget-initiated tool calls
 - widget falls back to ChatGPT `window.openai` helpers when the bridge path is unavailable
 - widget calls `submit_answers` after the user answers all displayed questions
-- widget stores the submitted answers in `widgetState` when available
+- tool results set `_meta["openai/widgetSessionId"]` to `questionSetId`
+- widget stores selections and submitted answers in `widgetState` when available
 - widget uses `sendFollowUpMessage` when available so ChatGPT continues with the selected answers
 
 ## submit_answers
